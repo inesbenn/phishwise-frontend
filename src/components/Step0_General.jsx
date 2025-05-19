@@ -1,26 +1,28 @@
 // src/components/Step0_General.jsx
 import { useState } from 'react';
 import { createCampaign, updateStep0 } from '../api/campaigns';
+import { toast } from 'react-toastify';
 
 export default function Step0_General({ campaignId, onNext }) {
   const [name, setName] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [error, setError] = useState('');
+  const [startDate, setStartDate] = useState('')
 
   const handleSubmit = async e => {
     e.preventDefault();
     try {
+      let camp;
       if (!campaignId) {
-        // création
-        const camp = await createCampaign({ name, startDate });
+        camp = await createCampaign({ name, startDate });
+        toast.success('Campagne créée avec succès 🎉');
         onNext(camp._id);
       } else {
-        // mise à jour
         await updateStep0(campaignId, { name, startDate });
+        toast.info('Paramètres mis à jour.');
         onNext(campaignId);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur serveur');
+      const msg = err.response?.data?.message || 'Erreur serveur';
+      toast.error(`Échec : ${msg}`);
     }
   };
 
@@ -36,7 +38,6 @@ export default function Step0_General({ campaignId, onNext }) {
           className="mt-1 w-full border rounded p-2"
         />
       </div>
-
       <div>
         <label className="block font-medium">Date & heure de lancement</label>
         <input
@@ -47,12 +48,10 @@ export default function Step0_General({ campaignId, onNext }) {
           className="mt-1 w-full border rounded p-2"
         />
       </div>
-
-      {error && <p className="text-red-500">{error}</p>}
-
+      
       <button
         type="submit"
-        className="bg-blue-600 text-white px-4 py-2 rounded"
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
       >
         Suivant
       </button>

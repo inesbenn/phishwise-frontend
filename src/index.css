@@ -70,3 +70,14 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+.Toastify__toast--success {
+  background: #48bb78; /* vert */
+  color: white;
+  font-weight: bold;
+}
+
+.Toastify__toast--error {
+  background: #f56565; /* rouge */
+  color: white;
+  font-weight: bold;
+}
