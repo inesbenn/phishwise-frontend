@@ -1,7 +1,7 @@
 // src/pages/CampaignWizard.jsx
 import { useState } from 'react';
-import Step0_General from '../components/Step0_General';
-// import Step1_Targets from '../components/Step1_Targets'; // à venir
+import Step0_General  from '../components/Step0_General';
+import Step1_Targets  from '../components/Step1_Targets';
 
 // Import pour React-Toastify
 import { ToastContainer, toast } from 'react-toastify';
@@ -11,12 +11,11 @@ export default function CampaignWizard() {
   const [step, setStep] = useState(0);
   const [campaignId, setCampaignId] = useState(null);
 
+  // Passe à l'étape suivante; newId n'est défini que pour l'étape 0
   const handleNext = newId => {
-    if (!campaignId) {
+    if (step === 0 && newId) {
       setCampaignId(newId);
-
-      // Afficher une notification de succès
-      toast.success('Campagne créée !', {
+      toast.success('Campagne créée !', {
         position: 'top-center',
         autoClose: 3000
       });
@@ -24,24 +23,30 @@ export default function CampaignWizard() {
     setStep(s => s + 1);
   };
 
-  return (
-    <div className="max-w-2xl mx-auto mt-8">
-      <ToastContainer /> {/* ← Obligatoire pour afficher les toasts */}
+  // Reculer d'une étape
+  const handleBack = () => {
+    setStep(s => Math.max(s - 1, 0));
+  };
 
-      <h1 className="text-2xl font-bold mb-4">Création de campagne</h1>
+  return (
+    <div className="max-w-2xl mx-auto mt-8 space-y-6">
+      <ToastContainer />
+
+      <h1 className="text-2xl font-bold">Création de campagne</h1>
 
       {step === 0 && (
         <Step0_General campaignId={campaignId} onNext={handleNext} />
       )}
 
       {step === 1 && (
-        <div>
-          {/* <Step1_Targets campaignId={campaignId} onNext={handleNext} /> */}
-          Étape 1 — Gestion des cibles (à implémenter)
-        </div>
+        <Step1_Targets
+          campaignId={campaignId}
+          onNext={() => handleNext()}  // pas de newId à cette étape
+          onBack={handleBack}
+        />
       )}
 
-      {/* Etapes 2 à 6 */}
+      {/* À venir : Steps 2 à 6 */}
     </div>
   );
 }

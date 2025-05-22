@@ -10,3 +10,7 @@ export const createCampaign = payload =>
 
 export const updateStep0 = (id, payload) =>
   API.put(`/campaigns/${id}/step/0`, payload).then(res => res.data);
+
+// ← Nouvelle fonction pour Step 1
+export const updateStep1 = (id, targets) =>
+  API.put(`/campaigns/${id}/step/1`, { targets }).then(res => res.data);
