@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-
 
 import { 
   Shield, 
@@ -23,7 +21,10 @@ import {
   UserCheck,
   Clock,
   Menu,
-  X
+  X,
+  FileText,
+  Edit3,
+  GraduationCap
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -178,8 +179,11 @@ export default function AdminDashboard() {
         </div>
 
         {/* Actions Rapides */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <button className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:from-cyan-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 group">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+          <button 
+            onClick={() => window.location.href = '/campaign-wizard'}
+            className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:from-cyan-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 group"
+          >
             <div className="flex items-center space-x-3 sm:space-x-4">
               <div className="p-2 sm:p-3 bg-white/20 rounded-full flex-shrink-0">
                 <Plus className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" />
@@ -205,21 +209,37 @@ export default function AdminDashboard() {
             <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
           </button>
 
-         <Link
-  to="/users"
-  className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group sm:col-span-2 lg:col-span-1 flex items-center"
->
-  <div className="flex items-center space-x-3 sm:space-x-4">
-    <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
-      <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-purple-400" />
-    </div>
-    <div className="text-left min-w-0 flex-1">
-      <h3 className="text-lg sm:text-xl font-semibold truncate">Utilisateurs</h3>
-      <p className="text-xs sm:text-sm text-gray-300">Gérer les accès</p>
-    </div>
-  </div>
-  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
-</Link>
+          <button
+            onClick={() => window.location.href = '/users'}
+            className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
+          >
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
+                <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-purple-400" />
+              </div>
+              <div className="text-left min-w-0 flex-1">
+                <h3 className="text-lg sm:text-xl font-semibold truncate">Utilisateurs</h3>
+                <p className="text-xs sm:text-sm text-gray-300">Gérer les accès</p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          <button
+            onClick={() => window.location.href = '/learning-pages'}
+            className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
+          >
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <div className="p-2 sm:p-3 bg-green-500/20 rounded-full flex-shrink-0">
+                <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-green-400" />
+              </div>
+              <div className="text-left min-w-0 flex-1">
+                <h3 className="text-lg sm:text-xl font-semibold truncate">Pages d'Apprentissage</h3>
+                <p className="text-xs sm:text-sm text-gray-300">Créer et modifier les formations</p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
