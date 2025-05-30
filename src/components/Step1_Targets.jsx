@@ -2,14 +2,63 @@
 import React, { useEffect, useState } from 'react';
 import Papa from 'papaparse';
 import { toast } from 'react-toastify';
-import {
-  getTargets,
-  updateStep1,
-  updateTarget
-  // deleteTarget <- REMOVED - plus besoin !
-} from '../api/campaigns';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// 🚀 MOCK API FUNCTIONS - Pas d'erreurs 500 !
+const mockGetTargets = async (campaignId) => {
+  console.log('🔄 Mock: Loading targets for campaign', campaignId);
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve([
+        {
+          _id: 'target_1',
+          firstName: 'Jean',
+          lastName: 'Dupont',
+          email: 'jean.dupont@example.com',
+          position: 'Directeur Marketing',
+          country: 'France',
+          office: 'Paris'
+        },
+        {
+          _id: 'target_2', 
+          firstName: 'Marie',
+          lastName: 'Martin',
+          email: 'marie.martin@example.com',
+          position: 'Chef de Projet',
+          country: 'France',
+          office: 'Lyon'
+        }
+      ]);
+    }, 500);
+  });
+};
+
+const mockUpdateStep1 = async (campaignId, targets) => {
+  console.log('✅ Mock: Updating step 1 for campaign', campaignId, 'with targets:', targets);
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        id: campaignId,
+        targets: targets,
+        status: 'success'
+      });
+    }, 800);
+  });
+};
+
+const mockUpdateTarget = async (campaignId, targetId, data) => {
+  console.log('📝 Mock: Updating target', targetId, 'with data:', data);
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        _id: targetId,
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    }, 600);
+  });
+};
 
 export default function Step1_Targets({ campaignId, onNext, onBack }) {
   const [targets, setTargets] = useState([]);
@@ -20,11 +69,14 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
   });
   const [error, setError] = useState('');
 
-  // 1) Chargement initial des cibles
+  // 1) Chargement initial des cibles avec MOCK
   useEffect(() => {
     if (!campaignId) return;
-    getTargets(campaignId)
-      .then(data => setTargets(data))
+    mockGetTargets(campaignId)
+      .then(data => {
+        console.log('📊 Targets loaded:', data);
+        setTargets(data);
+      })
       .catch(() => toast.error('Impossible de charger les cibles'));
   }, [campaignId]);
 
@@ -48,6 +100,7 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
     setTargets(t => [...t, { _id: tempId, firstName, lastName, email, position, country, office, isManual: true }]);
     setFormData({ firstName: '', lastName: '', email: '', position: '', country: '', office: '' });
     setError('');
+    toast.success('Cible ajoutée !');
   };
 
   // 2) Sélection/désélection
@@ -57,7 +110,7 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
     setSelectedIds(s);
   };
 
-  // 3) Import CSV
+  // 3) Import CSV avec MOCK
   const handleCSVImport = e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -65,18 +118,21 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
       header: true,
       skipEmptyLines: true,
       complete: results => {
-        const parsed = results.data.map(row => ({
+        const parsed = results.data.map((row, index) => ({
+          _id: 'csv_' + Date.now() + '_' + index,
           firstName: row.firstName?.trim() || '',
           lastName:  row.lastName?.trim()  || '',
           email:     row.email?.trim()     || '',
           position:  row.position?.trim()  || '',
           country:   row.country?.trim()   || '',
-          office:    row.office?.trim()    || ''
+          office:    row.office?.trim()    || '',
+          isCSV: true
         }));
-        updateStep1(campaignId, parsed)
-          .then(updatedCamp => {
+        
+        mockUpdateStep1(campaignId, parsed)
+          .then(() => {
             toast.success('Cibles importées !');
-            setTargets(updatedCamp.targets);
+            setTargets(prev => [...prev, ...parsed]);
             setSelectedIds(new Set());
           })
           .catch(() => toast.error('Erreur mise à jour'));
@@ -107,7 +163,7 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
     setFormData({ ...t });
   };
 
-  // 6) Enregistrer l'édition
+  // 6) Enregistrer l'édition avec MOCK
   const saveEdit = () => {
     if (!EMAIL_REGEX.test(formData.email)) {
       toast.error('Email invalide');
@@ -115,15 +171,15 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
     }
     
     // Si c'est une cible manuelle, met à jour seulement le state
-    if (editing.isManual) {
+    if (editing.isManual || editing.isCSV) {
       setTargets(ts => ts.map(t => t._id === editing._id ? { ...t, ...formData } : t));
       setEditing(null);
       toast.success('Cible modifiée');
       return;
     }
     
-    // Sinon appel API pour les cibles du serveur
-    updateTarget(campaignId, editing._id, formData)
+    // Sinon appel MOCK API pour les cibles du serveur
+    mockUpdateTarget(campaignId, editing._id, formData)
       .then(updated => {
         setTargets(ts => ts.map(t => t._id === updated._id ? updated : t));
         setEditing(null);
@@ -132,21 +188,33 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
       .catch(() => toast.error('Erreur modification'));
   };
 
-  // 7) Envoyer les cibles sélectionnées pour l'étape suivante
+  // 7) Envoyer les cibles sélectionnées pour l'étape suivante avec MOCK
   const handleSubmit = () => {
     if (selectedIds.size === 0) {
       toast.error('Sélectionne au moins une cible');
       return;
     }
     const chosen = targets.filter(t => selectedIds.has(t._id));
-    updateStep1(campaignId, chosen)
-      .then(onNext)
+    console.log('🚀 Sending selected targets:', chosen);
+    
+    mockUpdateStep1(campaignId, chosen)
+      .then(() => {
+        toast.success('Cibles envoyées avec succès !');
+        onNext();
+      })
       .catch(() => toast.error('Erreur envoi'));
   };
 
   return (
     <div className="p-6 bg-white rounded shadow space-y-4">
       <h2 className="text-xl">Étape 1 – Gestion des cibles</h2>
+      
+      {/* Indicateur de mode MOCK */}
+      <div className="p-3 bg-yellow-100 border border-yellow-300 rounded">
+        <p className="text-sm text-yellow-800">
+          🚧 <strong>Mode développement :</strong> Utilisation des données de test (pas d'appels API réels)
+        </p>
+      </div>
 
       {/* Formulaire d'ajout manuel */}
       <div className="p-4 bg-blue-50 border rounded">
@@ -285,8 +353,9 @@ export default function Step1_Targets({ campaignId, onNext, onBack }) {
           Précédent
         </button>
         <button onClick={handleSubmit} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-          Suivant
+          Suivant ({selectedIds.size} sélectionnée{selectedIds.size > 1 ? 's' : ''})
         </button>
       </div>
     </div>
-  );}
+  );
+}

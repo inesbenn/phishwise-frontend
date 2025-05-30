@@ -2,10 +2,13 @@
 import { useState } from 'react';
 import Step0_General  from '../components/Step0_General';
 import Step1_Targets  from '../components/Step1_Targets';
+import NewsPage from '../components/NewsPage';
+import EmailTemplatesPage from '../components/EmailTemplatesPage';
 
 // Import pour React-Toastify
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import ModelEmail from '../components/EmailTemplatesPage';
 
 export default function CampaignWizard() {
   const [step, setStep] = useState(0);
@@ -46,6 +49,18 @@ export default function CampaignWizard() {
         />
       )}
 
+      {step === 2 && (
+        <NewsPage
+          onNext={() => handleNext()}  // pas de newId à cette étape
+          onBack={handleBack}
+        />
+      )}
+{step === 3 && (
+        <EmailTemplatesPage
+          onNext={() => handleNext()}  // pas de newId à cette étape
+          onBack={handleBack}
+        />
+      )}
       {/* À venir : Steps 2 à 6 */}
     </div>
   );
