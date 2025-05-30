@@ -384,14 +384,7 @@ export default function ModernUsersPage() {
             </div>
 
             <div className="flex gap-3">
-              <button 
-                onClick={fetchUsers}
-                disabled={loading}
-                className="flex items-center space-x-2 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all disabled:opacity-50"
-              >
-                <Download className="w-4 h-4" />
-                <span className="text-sm">{loading ? 'Chargement...' : 'Actualiser'}</span>
-              </button>
+             
               
               <button 
                 onClick={() => { setEditData(null); setShowModal(true); }}

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+
 
 import { 
   Shield, 
@@ -203,18 +205,21 @@ export default function AdminDashboard() {
             <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
           </button>
 
-          <button className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group sm:col-span-2 lg:col-span-1">
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
-                <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-purple-400" />
-              </div>
-              <div className="text-left min-w-0 flex-1">
-                <h3 className="text-lg sm:text-xl font-semibold truncate">Utilisateurs</h3>
-                <p className="text-xs sm:text-sm text-gray-300">Gérer les accès</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
-          </button>
+         <Link
+  to="/users"
+  className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group sm:col-span-2 lg:col-span-1 flex items-center"
+>
+  <div className="flex items-center space-x-3 sm:space-x-4">
+    <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
+      <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-purple-400" />
+    </div>
+    <div className="text-left min-w-0 flex-1">
+      <h3 className="text-lg sm:text-xl font-semibold truncate">Utilisateurs</h3>
+      <p className="text-xs sm:text-sm text-gray-300">Gérer les accès</p>
+    </div>
+  </div>
+  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
+</Link>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
