@@ -2,8 +2,7 @@
 import React, { useState } from 'react';
 import Step0_General from '../components/Step0_General';
 import Step1_Targets from '../components/Step1_Targets';
-import NewsPage from '../components/NewsPage';
-import EmailTemplatesPage from '../components/EmailTemplatesPage'; 
+import ModelMail from '../components/ModelMail';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -33,7 +32,7 @@ export default function CampaignWizard() {
     setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
   };
 
-const handleBack = () => {
+  const handleBack = () => {
     setStep((s) => Math.max(s - 1, 0));
   };
 
@@ -53,7 +52,7 @@ const handleBack = () => {
       break;
     case 2:
       CurrentStep = (
-        <NewsPage
+        <ModelMail
           campaignId={campaignId}
           onNext={() => handleNext()}
           onBack={handleBack}
@@ -62,7 +61,7 @@ const handleBack = () => {
       break;
     case 3:
       CurrentStep = (
-        <EmailTemplatesPage
+        <ModelMail // Ou un autre composant pour l'étape 3
           campaignId={campaignId}
           onNext={() => handleNext()}
           onBack={handleBack}

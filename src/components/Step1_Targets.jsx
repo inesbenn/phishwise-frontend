@@ -126,14 +126,15 @@ export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = (
       alert('Veuillez ajouter au moins une cible avant de continuer.');
       return;
     }
+    // Appeler la fonction onNext passée par le wizard pour passer à l'étape suivante
     onNext();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
       {/* Header */}
-      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-3">
+      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 flex-shrink-0">
+        <div className="px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">PhishWise</h1>
@@ -143,119 +144,124 @@ export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = (
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-6">
-        {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-bold text-white">Création de Campagne</h2>
-            <span className="text-sm text-gray-300">Étape 2 sur 7</span>
-          </div>
-          <div className="w-full bg-white/10 rounded-full h-2">
-            <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-2 rounded-full w-[28.56%]"></div>
-          </div>
-          <div className="grid grid-cols-7 gap-2 mt-2 text-xs text-gray-400">
-            <span className="text-cyan-400 font-medium text-center">Paramètres</span>
-            <span className="text-cyan-400 font-medium text-center">Cibles</span>
-            <span className="text-center">Actualités</span>
-            <span className="text-center">Modèles</span>
-            <span className="text-center">Landing</span>
-            <span className="text-center">SMTP</span>
-            <span className="text-center">Formation</span>
-          </div>
-        </div>
-
-        {/* Section Import */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="p-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
+      {/* Content Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-6 py-4 space-y-4">
+          {/* Progress Bar */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold text-white">Création de Campagne</h2>
+              <span className="text-sm text-gray-300">Étape 2 sur 7</span>
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-white">Ajout des Cibles</h3>
-              <p className="text-gray-300 text-sm">Importer depuis un fichier ou ajouter manuellement</p>
+            <div className="w-full bg-white/10 rounded-full h-2">
+              <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-2 rounded-full w-[28.56%]"></div>
+            </div>
+            <div className="grid grid-cols-7 gap-2 mt-2 text-xs text-gray-400">
+              <span className="text-cyan-400 font-medium text-center">Paramètres</span>
+              <span className="text-cyan-400 font-medium text-center">Cibles</span>
+              <span className="text-center">Actualités</span>
+              <span className="text-center">Modèles</span>
+              <span className="text-center">Landing</span>
+              <span className="text-center">SMTP</span>
+              <span className="text-center">Formation</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <label className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg cursor-pointer">
-              <Upload className="w-5 h-5" />
-              <span>Importer Fichier</span>
-              <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileImport} className="hidden" />
-            </label>
-            <button onClick={() => setShowManualForm(true)} className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg">
-              <Plus className="w-5 h-5" />
-              <span>Ajouter Manuellement</span>
-            </button>
-          </div>
-          
-          <p className="text-gray-400 text-xs text-center">Formats: CSV, XLS, XLSX - Colonnes: prénom, nom, email, poste, pays, bureau</p>
+          {/* Section Import */}
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Ajout des Cibles</h3>
+                <p className="text-gray-300 text-sm">Importer depuis un fichier ou ajouter manuellement</p>
+              </div>
+            </div>
 
-          {importErrors.length > 0 && (
-            <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-              <h5 className="text-red-400 font-medium mb-1 text-sm">Erreurs d'import:</h5>
-              <ul className="text-red-300 text-xs space-y-1">
-                {importErrors.map((error, index) => <li key={index}>• {error}</li>)}
-              </ul>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <label className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg cursor-pointer">
+                <Upload className="w-5 h-5" />
+                <span>Importer Fichier</span>
+                <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileImport} className="hidden" />
+              </label>
+              <button onClick={() => setShowManualForm(true)} className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg">
+                <Plus className="w-5 h-5" />
+                <span>Ajouter Manuellement</span>
+              </button>
+            </div>
+            
+            <p className="text-gray-400 text-xs text-center">Formats: CSV, XLS, XLSX - Colonnes: prénom, nom, email, poste, pays, bureau</p>
+
+            {importErrors.length > 0 && (
+              <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                <h5 className="text-red-400 font-medium mb-1 text-sm">Erreurs d'import:</h5>
+                <ul className="text-red-300 text-xs space-y-1">
+                  {importErrors.map((error, index) => <li key={index}>• {error}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Formulaire d'ajout manuel */}
+          {showManualForm && (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+                <Plus className="w-6 h-6 text-green-400" />
+                <span>Ajouter une Cible</span>
+              </h3>
+              <ManualTargetForm onAdd={addManualTarget} onCancel={() => setShowManualForm(false)} />
+            </div>
+          )}
+
+          {/* Liste des cibles */}
+          {targets.length > 0 ? (
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+                <Users className="w-6 h-6 text-cyan-400" />
+                <span>Cibles ({targets.length})</span>
+              </h3>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {targets.map((target) => (
+                  <div key={target.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    {editingTarget === target.id ? (
+                      <EditForm target={target} onSave={saveEdit} onCancel={() => setEditingTarget(null)} />
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="grid grid-cols-6 gap-3 flex-1 text-sm">
+                          <div><span className="text-gray-400 text-xs block">Prénom</span><span className="text-white font-medium">{target.firstName}</span></div>
+                          <div><span className="text-gray-400 text-xs block">Nom</span><span className="text-white font-medium">{target.lastName}</span></div>
+                          <div><span className="text-gray-400 text-xs block">Email</span><span className="text-white">{target.email}</span></div>
+                          <div><span className="text-gray-400 text-xs block">Poste</span><span className="text-white">{target.position || '-'}</span></div>
+                          <div><span className="text-gray-400 text-xs block">Pays</span><span className="text-white">{target.country || '-'}</span></div>
+                          <div><span className="text-gray-400 text-xs block">Bureau</span><span className="text-white">{target.office || '-'}</span></div>
+                        </div>
+                        <div className="flex space-x-1 ml-3">
+                          <button onClick={() => setEditingTarget(target.id)} className="p-2 hover:bg-blue-500/20 text-blue-400 rounded">
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => removeTarget(target.id)} className="p-2 hover:bg-red-500/20 text-red-400 rounded">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white/5 rounded-xl border border-white/10 p-8 text-center">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <h4 className="text-white font-medium mb-1">Aucune cible ajoutée</h4>
+              <p className="text-gray-300 text-sm">Importez un fichier ou ajoutez des cibles manuellement.</p>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Formulaire d'ajout manuel */}
-        {showManualForm && (
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
-              <Plus className="w-6 h-6 text-green-400" />
-              <span>Ajouter une Cible</span>
-            </h3>
-            <ManualTargetForm onAdd={addManualTarget} onCancel={() => setShowManualForm(false)} />
-          </div>
-        )}
-
-        {/* Liste des cibles */}
-        {targets.length > 0 ? (
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
-              <Users className="w-6 h-6 text-cyan-400" />
-              <span>Cibles ({targets.length})</span>
-            </h3>
-            <div className="space-y-3">
-              {targets.map((target) => (
-                <div key={target.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                  {editingTarget === target.id ? (
-                    <EditForm target={target} onSave={saveEdit} onCancel={() => setEditingTarget(null)} />
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="grid grid-cols-6 gap-3 flex-1 text-sm">
-                        <div><span className="text-gray-400 text-xs block">Prénom</span><span className="text-white font-medium">{target.firstName}</span></div>
-                        <div><span className="text-gray-400 text-xs block">Nom</span><span className="text-white font-medium">{target.lastName}</span></div>
-                        <div><span className="text-gray-400 text-xs block">Email</span><span className="text-white">{target.email}</span></div>
-                        <div><span className="text-gray-400 text-xs block">Poste</span><span className="text-white">{target.position || '-'}</span></div>
-                        <div><span className="text-gray-400 text-xs block">Pays</span><span className="text-white">{target.country || '-'}</span></div>
-                        <div><span className="text-gray-400 text-xs block">Bureau</span><span className="text-white">{target.office || '-'}</span></div>
-                      </div>
-                      <div className="flex space-x-1 ml-3">
-                        <button onClick={() => setEditingTarget(target.id)} className="p-2 hover:bg-blue-500/20 text-blue-400 rounded">
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => removeTarget(target.id)} className="p-2 hover:bg-red-500/20 text-red-400 rounded">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white/5 rounded-xl border border-white/10 p-8 text-center mb-6">
-            <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <h4 className="text-white font-medium mb-1">Aucune cible ajoutée</h4>
-            <p className="text-gray-300 text-sm">Importez un fichier ou ajoutez des cibles manuellement.</p>
-          </div>
-        )}
-
-        {/* Navigation */}
+      {/* Navigation - Fixed at bottom */}
+      <div className="flex-shrink-0 bg-black/10 backdrop-blur-lg border-t border-white/10 px-6 py-4">
         <div className="flex justify-between">
           <button onClick={onBack} className="flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20">
             <ArrowLeft className="w-4 h-4" />
