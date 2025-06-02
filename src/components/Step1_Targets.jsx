@@ -1,359 +1,399 @@
-// src/components/Step1_Targets.jsx
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
+import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { toast } from 'react-toastify';
+import { ArrowRight, ArrowLeft, Users, Upload, X, Edit3, Trash2, Save, User, Mail, Globe, Building, Plus } from 'lucide-react';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// 🚀 MOCK API FUNCTIONS - Pas d'erreurs 500 !
-const mockGetTargets = async (campaignId) => {
-  console.log('🔄 Mock: Loading targets for campaign', campaignId);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve([
-        {
-          _id: 'target_1',
-          firstName: 'Jean',
-          lastName: 'Dupont',
-          email: 'jean.dupont@example.com',
-          position: 'Directeur Marketing',
-          country: 'France',
-          office: 'Paris'
-        },
-        {
-          _id: 'target_2', 
-          firstName: 'Marie',
-          lastName: 'Martin',
-          email: 'marie.martin@example.com',
-          position: 'Chef de Projet',
-          country: 'France',
-          office: 'Lyon'
-        }
-      ]);
-    }, 500);
-  });
-};
-
-const mockUpdateStep1 = async (campaignId, targets) => {
-  console.log('✅ Mock: Updating step 1 for campaign', campaignId, 'with targets:', targets);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        id: campaignId,
-        targets: targets,
-        status: 'success'
-      });
-    }, 800);
-  });
-};
-
-const mockUpdateTarget = async (campaignId, targetId, data) => {
-  console.log('📝 Mock: Updating target', targetId, 'with data:', data);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        _id: targetId,
-        ...data,
-        updatedAt: new Date().toISOString()
-      });
-    }, 600);
-  });
-};
-
-export default function Step1_Targets({ campaignId, onNext, onBack }) {
+export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = () => {}, onBack = () => {} }) {
   const [targets, setTargets] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [editing, setEditing] = useState(null);
-  const [formData, setFormData] = useState({
-    firstName: '', lastName: '', email: '', position: '', country: '', office: ''
-  });
-  const [error, setError] = useState('');
+  const [editingTarget, setEditingTarget] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
+  const [showManualForm, setShowManualForm] = useState(false);
 
-  // 1) Chargement initial des cibles avec MOCK
-  useEffect(() => {
-    if (!campaignId) return;
-    mockGetTargets(campaignId)
-      .then(data => {
-        console.log('📊 Targets loaded:', data);
-        setTargets(data);
-      })
-      .catch(() => toast.error('Impossible de charger les cibles'));
-  }, [campaignId]);
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  // 1. Gestion de l'ajout manuel
-  const handleChange = e =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-
-  const handleAddManual = e => {
-    e.preventDefault();
-    const { firstName, lastName, email, position, country, office } = formData;
-    if (!firstName || !lastName || !email) {
-      setError('Prénom, Nom et Email sont obligatoires.');
+  const addManualTarget = (targetData) => {
+    if (!targetData.firstName || !targetData.lastName || !targetData.email) {
+      alert('Prénom, nom et email sont obligatoires');
       return;
     }
-    if (!EMAIL_REGEX.test(email)) {
-      setError('Email invalide.');
+    if (!isValidEmail(targetData.email)) {
+      alert('Email invalide');
       return;
     }
-    // Génère un ID temporaire pour les cibles ajoutées manuellement
-    const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    setTargets(t => [...t, { _id: tempId, firstName, lastName, email, position, country, office, isManual: true }]);
-    setFormData({ firstName: '', lastName: '', email: '', position: '', country: '', office: '' });
-    setError('');
-    toast.success('Cible ajoutée !');
+    if (targets.some(t => t.email.toLowerCase() === targetData.email.toLowerCase())) {
+      alert('Email déjà existant');
+      return;
+    }
+    setTargets([...targets, { id: Date.now(), ...targetData }]);
+    setShowManualForm(false);
   };
 
-  // 2) Sélection/désélection
-  const toggleSelect = id => {
-    const s = new Set(selectedIds);
-    s.has(id) ? s.delete(id) : s.add(id);
-    setSelectedIds(s);
-  };
-
-  // 3) Import CSV avec MOCK
-  const handleCSVImport = e => {
-    const file = e.target.files[0];
+  const handleFileImport = (event) => {
+    const file = event.target.files[0];
     if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: results => {
-        const parsed = results.data.map((row, index) => ({
-          _id: 'csv_' + Date.now() + '_' + index,
-          firstName: row.firstName?.trim() || '',
-          lastName:  row.lastName?.trim()  || '',
-          email:     row.email?.trim()     || '',
-          position:  row.position?.trim()  || '',
-          country:   row.country?.trim()   || '',
-          office:    row.office?.trim()    || '',
-          isCSV: true
-        }));
-        
-        mockUpdateStep1(campaignId, parsed)
-          .then(() => {
-            toast.success('Cibles importées !');
-            setTargets(prev => [...prev, ...parsed]);
-            setSelectedIds(new Set());
-          })
-          .catch(() => toast.error('Erreur mise à jour'));
+
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    setImportErrors([]);
+    
+    if (fileExtension === 'csv') {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => processImportedData(results.data),
+        error: (error) => setImportErrors([`Erreur CSV: ${error.message}`])
+      });
+    } else if (['xls', 'xlsx'].includes(fileExtension)) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          processImportedData(jsonData);
+        } catch (error) {
+          setImportErrors([`Erreur Excel: ${error.message}`]);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      setImportErrors(['Format non supporté. Utilisez CSV ou Excel (.xls/.xlsx)']);
+    }
+    
+    // Reset input pour permettre re-importation
+    event.target.value = '';
+  };
+
+  const processImportedData = (data) => {
+    const newTargets = [];
+    const errors = [];
+
+    data.forEach((row, index) => {
+      const normalizedRow = {};
+      Object.keys(row).forEach(key => {
+        const normalizedKey = key.trim().toLowerCase()
+          .replace(/prénom|firstname|first_name|prenom/i, 'firstName')
+          .replace(/nom|lastname|last_name/i, 'lastName')
+          .replace(/email|e-mail/i, 'email')
+          .replace(/poste|position|job/i, 'position')
+          .replace(/pays|country/i, 'country')
+          .replace(/bureau|office|ville|city/i, 'office');
+        normalizedRow[normalizedKey] = row[key];
+      });
+
+      const target = {
+        id: Date.now() + index,
+        firstName: normalizedRow.firstName || '',
+        lastName: normalizedRow.lastName || '',
+        email: normalizedRow.email || '',
+        position: normalizedRow.position || '',
+        country: normalizedRow.country || '',
+        office: normalizedRow.office || ''
+      };
+
+      if (!target.firstName || !target.lastName || !target.email) {
+        errors.push(`Ligne ${index + 2}: Prénom, nom ou email manquant`);
+        return;
       }
+      if (!isValidEmail(target.email)) {
+        errors.push(`Ligne ${index + 2}: Email invalide (${target.email})`);
+        return;
+      }
+      if (targets.some(t => t.email.toLowerCase() === target.email.toLowerCase()) || 
+          newTargets.some(t => t.email.toLowerCase() === target.email.toLowerCase())) {
+        errors.push(`Ligne ${index + 2}: Email déjà existant (${target.email})`);
+        return;
+      }
+      newTargets.push(target);
     });
+
+    setImportErrors(errors);
+    if (newTargets.length > 0) {
+      setTargets([...targets, ...newTargets]);
+    }
   };
 
-  // 4) Supprimer une cible (UNIQUEMENT côté front - AUCUN APPEL API)
-  const handleDelete = (id) => {
-    console.log('🗑️ Suppression front-end pour ID:', id);
-    
-    // Suppression directe du state local
-    setTargets(currentTargets => currentTargets.filter(t => t._id !== id));
-    
-    // Suppression de la sélection
-    setSelectedIds(currentSelected => {
-      const newSet = new Set(currentSelected);
-      newSet.delete(id);
-      return newSet;
-    });
-    
-    toast.success('Cible supprimée !');
+  const saveEdit = (targetId, updatedData) => {
+    if (!updatedData.firstName || !updatedData.lastName || !updatedData.email || !isValidEmail(updatedData.email)) return;
+    setTargets(targets.map(target => target.id === targetId ? { ...target, ...updatedData } : target));
+    setEditingTarget(null);
   };
 
-  // 5) Démarrer l'édition inline
-  const startEdit = t => {
-    setEditing(t);
-    setFormData({ ...t });
-  };
+  const removeTarget = (id) => setTargets(targets.filter(target => target.id !== id));
 
-  // 6) Enregistrer l'édition avec MOCK
-  const saveEdit = () => {
-    if (!EMAIL_REGEX.test(formData.email)) {
-      toast.error('Email invalide');
+  const handleNext = () => {
+    if (targets.length === 0) {
+      alert('Veuillez ajouter au moins une cible avant de continuer.');
       return;
     }
-    
-    // Si c'est une cible manuelle, met à jour seulement le state
-    if (editing.isManual || editing.isCSV) {
-      setTargets(ts => ts.map(t => t._id === editing._id ? { ...t, ...formData } : t));
-      setEditing(null);
-      toast.success('Cible modifiée');
-      return;
-    }
-    
-    // Sinon appel MOCK API pour les cibles du serveur
-    mockUpdateTarget(campaignId, editing._id, formData)
-      .then(updated => {
-        setTargets(ts => ts.map(t => t._id === updated._id ? updated : t));
-        setEditing(null);
-        toast.success('Cible modifiée');
-      })
-      .catch(() => toast.error('Erreur modification'));
-  };
-
-  // 7) Envoyer les cibles sélectionnées pour l'étape suivante avec MOCK
-  const handleSubmit = () => {
-    if (selectedIds.size === 0) {
-      toast.error('Sélectionne au moins une cible');
-      return;
-    }
-    const chosen = targets.filter(t => selectedIds.has(t._id));
-    console.log('🚀 Sending selected targets:', chosen);
-    
-    mockUpdateStep1(campaignId, chosen)
-      .then(() => {
-        toast.success('Cibles envoyées avec succès !');
-        onNext();
-      })
-      .catch(() => toast.error('Erreur envoi'));
+    onNext();
   };
 
   return (
-    <div className="p-6 bg-white rounded shadow space-y-4">
-      <h2 className="text-xl">Étape 1 – Gestion des cibles</h2>
-      
-      {/* Indicateur de mode MOCK */}
-      <div className="p-3 bg-yellow-100 border border-yellow-300 rounded">
-        <p className="text-sm text-yellow-800">
-          🚧 <strong>Mode développement :</strong> Utilisation des données de test (pas d'appels API réels)
-        </p>
-      </div>
-
-      {/* Formulaire d'ajout manuel */}
-      <div className="p-4 bg-blue-50 border rounded">
-        <h3 className="font-medium mb-3">Ajouter une cible manuellement</h3>
-        <form onSubmit={handleAddManual} className="space-y-3">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <input
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              placeholder="Prénom *"
-              className="border p-2 rounded"
-              required
-            />
-            <input
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              placeholder="Nom *"
-              className="border p-2 rounded"
-              required
-            />
-            <input
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Email *"
-              className="border p-2 rounded"
-              required
-            />
-            <input
-              name="position"
-              value={formData.position}
-              onChange={handleChange}
-              placeholder="Poste"
-              className="border p-2 rounded"
-            />
-            <input
-              name="country"
-              value={formData.country}
-              onChange={handleChange}
-              placeholder="Pays"
-              className="border p-2 rounded"
-            />
-            <input
-              name="office"
-              value={formData.office}
-              onChange={handleChange}
-              placeholder="Bureau"
-              className="border p-2 rounded"
-            />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            Ajouter la cible
-          </button>
-        </form>
-      </div>
-
-      <div>
-        <label className="block font-medium mb-1">Importer un CSV :</label>
-        <input type="file" accept=".csv" onChange={handleCSVImport} />
-      </div>
-
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-gray-100">
-            <th></th>
-            {['Prénom','Nom','Email','Poste','Pays','Bureau','Actions'].map(h => (
-              <th key={h} className="border p-2">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {targets.map(t => {
-            const invalid = !EMAIL_REGEX.test(t.email);
-            return (
-              <tr key={t._id}>
-                <td className="border p-2 text-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(t._id)}
-                    onChange={() => toggleSelect(t._id)}
-                  />
-                </td>
-                <td className="border p-2">{t.firstName}</td>
-                <td className="border p-2">{t.lastName}</td>
-                <td className={`border p-2 ${invalid ? 'text-red-500' : ''}`}>
-                  {t.email}
-                </td>
-                <td className="border p-2">{t.position}</td>
-                <td className="border p-2">{t.country}</td>
-                <td className="border p-2">{t.office}</td>
-                <td className="border p-2 space-x-2">
-                  <button onClick={() => startEdit(t)}>✏️</button>
-                  <button onClick={() => handleDelete(t._id)}>❌</button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      {editing && (
-        <div className="p-4 bg-gray-50 border rounded">
-          <h3>Modifier {editing.firstName} {editing.lastName}</h3>
-          <div className="flex flex-wrap">
-            {['firstName','lastName','email','position','country','office'].map(f => (
-              <input
-                key={f}
-                name={f}
-                value={formData[f] || ''}
-                onChange={e => setFormData({ ...formData, [f]: e.target.value })}
-                placeholder={f}
-                className="border p-2 m-1 rounded"
-              />
-            ))}
-          </div>
-          <div className="mt-2 space-x-2">
-            <button onClick={saveEdit} className="bg-green-500 text-white px-3 py-1 rounded">
-              Enregistrer
-            </button>
-            <button onClick={() => setEditing(null)} className="px-3 py-1 rounded">
-              Annuler
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Header */}
+      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">PhishWise</h1>
+              <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-sm">Nouvelle Campagne</span>
+            </div>
           </div>
         </div>
-      )}
+      </header>
+
+      <div className="max-w-6xl mx-auto px-6 py-6">
+        {/* Progress Bar */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-bold text-white">Création de Campagne</h2>
+            <span className="text-sm text-gray-300">Étape 2 sur 7</span>
+          </div>
+          <div className="w-full bg-white/10 rounded-full h-2">
+            <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-2 rounded-full w-[28.56%]"></div>
+          </div>
+          <div className="grid grid-cols-7 gap-2 mt-2 text-xs text-gray-400">
+            <span className="text-cyan-400 font-medium text-center">Paramètres</span>
+            <span className="text-cyan-400 font-medium text-center">Cibles</span>
+            <span className="text-center">Actualités</span>
+            <span className="text-center">Modèles</span>
+            <span className="text-center">Landing</span>
+            <span className="text-center">SMTP</span>
+            <span className="text-center">Formation</span>
+          </div>
+        </div>
+
+        {/* Section Import */}
+        <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="p-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white">Ajout des Cibles</h3>
+              <p className="text-gray-300 text-sm">Importer depuis un fichier ou ajouter manuellement</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <label className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg cursor-pointer">
+              <Upload className="w-5 h-5" />
+              <span>Importer Fichier</span>
+              <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileImport} className="hidden" />
+            </label>
+            <button onClick={() => setShowManualForm(true)} className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg">
+              <Plus className="w-5 h-5" />
+              <span>Ajouter Manuellement</span>
+            </button>
+          </div>
+          
+          <p className="text-gray-400 text-xs text-center">Formats: CSV, XLS, XLSX - Colonnes: prénom, nom, email, poste, pays, bureau</p>
+
+          {importErrors.length > 0 && (
+            <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+              <h5 className="text-red-400 font-medium mb-1 text-sm">Erreurs d'import:</h5>
+              <ul className="text-red-300 text-xs space-y-1">
+                {importErrors.map((error, index) => <li key={index}>• {error}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire d'ajout manuel */}
+        {showManualForm && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+              <Plus className="w-6 h-6 text-green-400" />
+              <span>Ajouter une Cible</span>
+            </h3>
+            <ManualTargetForm onAdd={addManualTarget} onCancel={() => setShowManualForm(false)} />
+          </div>
+        )}
+
+        {/* Liste des cibles */}
+        {targets.length > 0 ? (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+              <Users className="w-6 h-6 text-cyan-400" />
+              <span>Cibles ({targets.length})</span>
+            </h3>
+            <div className="space-y-3">
+              {targets.map((target) => (
+                <div key={target.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                  {editingTarget === target.id ? (
+                    <EditForm target={target} onSave={saveEdit} onCancel={() => setEditingTarget(null)} />
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="grid grid-cols-6 gap-3 flex-1 text-sm">
+                        <div><span className="text-gray-400 text-xs block">Prénom</span><span className="text-white font-medium">{target.firstName}</span></div>
+                        <div><span className="text-gray-400 text-xs block">Nom</span><span className="text-white font-medium">{target.lastName}</span></div>
+                        <div><span className="text-gray-400 text-xs block">Email</span><span className="text-white">{target.email}</span></div>
+                        <div><span className="text-gray-400 text-xs block">Poste</span><span className="text-white">{target.position || '-'}</span></div>
+                        <div><span className="text-gray-400 text-xs block">Pays</span><span className="text-white">{target.country || '-'}</span></div>
+                        <div><span className="text-gray-400 text-xs block">Bureau</span><span className="text-white">{target.office || '-'}</span></div>
+                      </div>
+                      <div className="flex space-x-1 ml-3">
+                        <button onClick={() => setEditingTarget(target.id)} className="p-2 hover:bg-blue-500/20 text-blue-400 rounded">
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => removeTarget(target.id)} className="p-2 hover:bg-red-500/20 text-red-400 rounded">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white/5 rounded-xl border border-white/10 p-8 text-center mb-6">
+            <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <h4 className="text-white font-medium mb-1">Aucune cible ajoutée</h4>
+            <p className="text-gray-300 text-sm">Importez un fichier ou ajoutez des cibles manuellement.</p>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex justify-between">
+          <button onClick={onBack} className="flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20">
+            <ArrowLeft className="w-4 h-4" />
+            <span>Retour</span>
+          </button>
+          <button onClick={handleNext} disabled={targets.length === 0} className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg disabled:opacity-50">
+            <span>Suivant</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManualTargetForm({ onAdd, onCancel }) {
+  const [formData, setFormData] = useState({
+    firstName: '', lastName: '', email: '', position: '', country: '', office: ''
+  });
+
+  const handleSubmit = () => {
+    onAdd(formData);
+    setFormData({ firstName: '', lastName: '', email: '', position: '', country: '', office: '' });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-white text-sm mb-1">Prénom *</label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="text" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Prénom" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-white text-sm mb-1">Nom *</label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="text" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Nom" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-white text-sm mb-1">Email *</label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="email@exemple.com" />
+          </div>
+        </div>
+      </div>
       
-      <div className="flex justify-between">
-        <button onClick={onBack} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">
-          Précédent
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-white text-sm mb-1">Poste</label>
+          <input type="text" value={formData.position} onChange={(e) => setFormData({...formData, position: e.target.value})} className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Poste" />
+        </div>
+        <div>
+          <label className="block text-white text-sm mb-1">Pays</label>
+          <div className="relative">
+            <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="text" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Pays" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-white text-sm mb-1">Bureau</label>
+          <div className="relative">
+            <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="text" value={formData.office} onChange={(e) => setFormData({...formData, office: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Bureau" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <button onClick={onCancel} className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded border border-white/20">
+          <X className="w-4 h-4" />
+          <span>Annuler</span>
         </button>
-        <button onClick={handleSubmit} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-          Suivant ({selectedIds.size} sélectionnée{selectedIds.size > 1 ? 's' : ''})
+        <button onClick={handleSubmit} className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded">
+          <Plus className="w-4 h-4" />
+          <span>Ajouter</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditForm({ target, onSave, onCancel }) {
+  const [formData, setFormData] = useState({
+    firstName: target.firstName, lastName: target.lastName, email: target.email,
+    position: target.position, country: target.country, office: target.office
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-white text-sm mb-1">Prénom</label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="text" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-white text-sm mb-1">Nom</label>
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="text" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-white text-sm mb-1">Email</label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" />
+          </div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-3">
+        <input type="text" value={formData.position} onChange={(e) => setFormData({...formData, position: e.target.value})} className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" placeholder="Poste" />
+        <div className="relative">
+          <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input type="text" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" placeholder="Pays" />
+        </div>
+        <div className="relative">
+          <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input type="text" value={formData.office} onChange={(e) => setFormData({...formData, office: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" placeholder="Bureau" />
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <button onClick={onCancel} className="flex items-center space-x-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded border border-white/20">
+          <X className="w-4 h-4" />
+          <span>Annuler</span>
+        </button>
+        <button onClick={() => onSave(target.id, formData)} className="flex items-center space-x-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded">
+          <Save className="w-4 h-4" />
+          <span>Sauvegarder</span>
         </button>
       </div>
     </div>

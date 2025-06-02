@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import {
   Users,
@@ -422,7 +421,7 @@ export default function ModernUsersPage() {
                     <th className="text-left py-3 px-4 text-gray-300 font-medium">Email</th>
                     <th className="text-left py-3 px-4 text-gray-300 font-medium">Rôle</th>
                     <th className="text-left py-3 px-4 text-gray-300 font-medium">Statut</th>
-                    <th className="text-left py-3 px-4 text-gray-300 font-medium">Bureau/Pays</th>
+                    
                     <th className="text-right py-3 px-4 text-gray-300 font-medium">Actions</th>
                   </tr>
                 </thead>
