@@ -9,13 +9,17 @@ import LearningPage from '../components/LearningPage';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const TOTAL_STEPS = 7; // Augmenté à 5 pour inclure la page Landing
+const TOTAL_STEPS = 7; 
 
 export default function CampaignWizard() {
   const [step, setStep] = useState(0);
   const [campaignId, setCampaignId] = useState(null);
+  
+  // État pour sauvegarder les données de chaque étape
+  const [step0Data, setStep0Data] = useState({});
+  const [step1Data, setStep1Data] = useState({}); // Nouvelle ligne pour Step1
 
-  const handleNext = (newId) => {
+  const handleNext = (newId, formData) => {
     // À l'étape 0, on doit absolument recevoir un newId pour continuer
     if (step === 0) {
       if (!newId) {
@@ -26,9 +30,24 @@ export default function CampaignWizard() {
         return;
       }
       setCampaignId(newId);
+      
+      // Sauvegarder les données du formulaire
+      if (formData) {
+        setStep0Data(formData);
+      }
+      
       toast.success('Campagne créée !', {
         position: 'top-center',
         autoClose: 3000
+      });
+    }
+    
+    // À l'étape 1, sauvegarder les données des cibles
+    if (step === 1 && formData) {
+      setStep1Data(formData);
+      toast.success('Cibles sauvegardées !', {
+        position: 'top-center',
+        autoClose: 2000
       });
     }
 
@@ -42,14 +61,15 @@ export default function CampaignWizard() {
   let CurrentStep;
   switch (step) {
     case 0:
-      CurrentStep = <Step0_General onNext={handleNext} />;
+      CurrentStep = <Step0_General onNext={handleNext} savedData={step0Data} />;
       break;
     case 1:
       CurrentStep = (
         <Step1_Targets
           campaignId={campaignId}
-          onNext={() => handleNext()}
+          onNext={handleNext}
           onBack={handleBack}
+          savedData={step1Data} // Passer les données sauvegardées
         />
       );
       break;

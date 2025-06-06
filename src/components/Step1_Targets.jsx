@@ -1,13 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { ArrowRight, ArrowLeft, Users, Upload, X, Edit3, Trash2, Save, User, Mail, Globe, Building, Plus } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Users, Upload, X, Edit3, Trash2, Save, User, Mail, Globe, Building, Plus, Info, CheckCircle } from 'lucide-react';
 
-export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = () => {}, onBack = () => {} }) {
+export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = () => {}, onBack = () => {}, savedData = {} }) {
+  // Reset default styles
+  useEffect(() => {
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.documentElement.style.margin = '0';
+    document.documentElement.style.padding = '0';
+  }, []);
+
   const [targets, setTargets] = useState([]);
   const [editingTarget, setEditingTarget] = useState(null);
   const [importErrors, setImportErrors] = useState([]);
   const [showManualForm, setShowManualForm] = useState(false);
+
+  // Charger les données sauvegardées au montage du composant
+  useEffect(() => {
+    if (savedData.targets && Array.isArray(savedData.targets)) {
+      setTargets(savedData.targets);
+    }
+  }, [savedData]);
 
   const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -60,8 +75,7 @@ export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = (
       setImportErrors(['Format non supporté. Utilisez CSV ou Excel (.xls/.xlsx)']);
     }
     
-    // Reset input pour permettre re-importation
-    event.target.value = '';
+  event.target.value = '';
   };
 
   const processImportedData = (data) => {
@@ -126,151 +140,221 @@ export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = (
       alert('Veuillez ajouter au moins une cible avant de continuer.');
       return;
     }
-    // Appeler la fonction onNext passée par le wizard pour passer à l'étape suivante
-    onNext();
+    
+    // Sauvegarder les données avant de passer à l'étape suivante
+    const step1FormData = {
+      targets: targets
+    };
+    
+    onNext(null, step1FormData);
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
+    <div
+      className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-auto"
+      style={{ margin: 0, padding: 0, top: 0, left: 0 }}
+    >
       {/* Header */}
-      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 flex-shrink-0">
-        <div className="px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">PhishWise</h1>
-              <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-sm">Nouvelle Campagne</span>
+      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 w-full">
+        <div className="w-full px-8 py-5">
+          <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
+            <div className="flex items-center space-x-6">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                PhishWise
+              </h1>
+              <span className="px-4 py-2 bg-cyan-500/20 text-cyan-300 rounded-full text-base font-medium">
+                Nouvelle Campagne
+              </span>
+            </div>
+            <div className="w-10 h-10 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+              A
             </div>
           </div>
         </div>
       </header>
 
-      {/* Content Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 py-4 space-y-4">
-          {/* Progress Bar */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-bold text-white">Création de Campagne</h2>
-              <span className="text-sm text-gray-300">Étape 2 sur 7</span>
+      <div className="w-full px-8 py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Progress */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-white">Création de Campagne</h2>
+              <span className="text-lg text-gray-300">Étape 2 sur 7</span>
             </div>
-            <div className="w-full bg-white/10 rounded-full h-2">
-              <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-2 rounded-full w-[28.56%]"></div>
+
+            <div className="w-full bg-white/10 rounded-full h-3">
+              <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-3 rounded-full w-[28.56%] transition-all duration-500"></div>
             </div>
-            <div className="grid grid-cols-7 gap-2 mt-2 text-xs text-gray-400">
-              <span className="text-cyan-400 font-medium text-center">Paramètres</span>
-              <span className="text-cyan-400 font-medium text-center">Cibles</span>
-              <span className="text-center">Actualités</span>
-              <span className="text-center">Modèles</span>
-              <span className="text-center">Landing</span>
-              <span className="text-center">SMTP</span>
-              <span className="text-center">Formation</span>
+
+            <div className="grid grid-cols-7 gap-4 mt-4 text-sm text-gray-400">
+              {['Paramètres', 'Cibles', 'Modèles', "Page d'atterrissage", 'SMTP', 'Formation', 'Finaliser'].map((step, i) => (
+                <span
+                  key={step}
+                  className={`text-center font-medium ${i <= 1 ? 'text-cyan-400' : ''}`}
+                >
+                  {step}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* Section Import */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="p-3 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-lg">
-                <Users className="w-6 h-6 text-white" />
+          {/* Main Content */}
+          <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-10">
+            {/* Section Header */}
+            <div className="flex items-center space-x-6 mb-10">
+              <div className="p-4 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl">
+                <Users className="w-10 h-10 text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-white">Ajout des Cibles</h3>
-                <p className="text-gray-300 text-sm">Importer depuis un fichier ou ajouter manuellement</p>
+                <h3 className="text-3xl font-bold text-white mb-2">Ajout des Cibles</h3>
+                <p className="text-lg text-gray-300">
+                  Importez depuis un fichier ou ajoutez des cibles manuellement
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <label className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg cursor-pointer">
-                <Upload className="w-5 h-5" />
-                <span>Importer Fichier</span>
-                <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileImport} className="hidden" />
-              </label>
-              <button onClick={() => setShowManualForm(true)} className="flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg">
-                <Plus className="w-5 h-5" />
-                <span>Ajouter Manuellement</span>
-              </button>
+            {/* Info Tip */}
+            <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-6 mb-10">
+              <div className="flex items-start space-x-4">
+                <Info className="w-6 h-6 text-cyan-400 mt-1 flex-shrink-0" />
+                <p className="text-cyan-300 text-base leading-relaxed">
+                  <strong>Conseil :</strong> Vous pouvez importer des fichiers CSV ou Excel avec les colonnes : prénom, nom, email, poste, pays, bureau. Les champs prénom, nom et email sont obligatoires.
+                </p>
+              </div>
             </div>
-            
-            <p className="text-gray-400 text-xs text-center">Formats: CSV, XLS, XLSX - Colonnes: prénom, nom, email, poste, pays, bureau</p>
 
-            {importErrors.length > 0 && (
-              <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-                <h5 className="text-red-400 font-medium mb-1 text-sm">Erreurs d'import:</h5>
-                <ul className="text-red-300 text-xs space-y-1">
-                  {importErrors.map((error, index) => <li key={index}>• {error}</li>)}
-                </ul>
+            {/* Import Section */}
+            <div className="space-y-10">
+              <div className="grid grid-cols-2 gap-6">
+                <label className="flex items-center justify-center space-x-4 px-8 py-6 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-xl cursor-pointer transition-all duration-300 hover:scale-105 text-lg font-medium">
+                  <Upload className="w-6 h-6" />
+                  <span>Importer Fichier</span>
+                  <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileImport} className="hidden" />
+                </label>
+                <button 
+                  onClick={() => setShowManualForm(true)} 
+                  className="flex items-center justify-center space-x-4 px-8 py-6 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl transition-all duration-300 hover:scale-105 text-lg font-medium"
+                >
+                  <Plus className="w-6 h-6" />
+                  <span>Ajouter Manuellement</span>
+                </button>
+              </div>
+              
+              <p className="text-gray-400 text-base text-center">Formats supportés: CSV, XLS, XLSX - Colonnes: prénom, nom, email, poste, pays, bureau</p>
+
+              {importErrors.length > 0 && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
+                  <h5 className="text-red-400 font-semibold mb-4 text-lg flex items-center space-x-3">
+                    <span className="text-xl">⚠️</span>
+                    <span>Erreurs d'import:</span>
+                  </h5>
+                  <ul className="text-red-300 text-base space-y-2">
+                    {importErrors.map((error, index) => <li key={index}>• {error}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Manual Form */}
+            {showManualForm && (
+              <div className="mt-10 bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-8">
+                <h4 className="text-2xl font-bold text-white mb-8 flex items-center space-x-4">
+                  <Plus className="w-7 h-7 text-green-400" />
+                  <span>Ajouter une Cible</span>
+                </h4>
+                <ManualTargetForm onAdd={addManualTarget} onCancel={() => setShowManualForm(false)} />
               </div>
             )}
-          </div>
 
-          {/* Formulaire d'ajout manuel */}
-          {showManualForm && (
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
-                <Plus className="w-6 h-6 text-green-400" />
-                <span>Ajouter une Cible</span>
-              </h3>
-              <ManualTargetForm onAdd={addManualTarget} onCancel={() => setShowManualForm(false)} />
-            </div>
-          )}
-
-          {/* Liste des cibles */}
-          {targets.length > 0 ? (
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
-                <Users className="w-6 h-6 text-cyan-400" />
-                <span>Cibles ({targets.length})</span>
-              </h3>
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {targets.map((target) => (
-                  <div key={target.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                    {editingTarget === target.id ? (
-                      <EditForm target={target} onSave={saveEdit} onCancel={() => setEditingTarget(null)} />
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div className="grid grid-cols-6 gap-3 flex-1 text-sm">
-                          <div><span className="text-gray-400 text-xs block">Prénom</span><span className="text-white font-medium">{target.firstName}</span></div>
-                          <div><span className="text-gray-400 text-xs block">Nom</span><span className="text-white font-medium">{target.lastName}</span></div>
-                          <div><span className="text-gray-400 text-xs block">Email</span><span className="text-white">{target.email}</span></div>
-                          <div><span className="text-gray-400 text-xs block">Poste</span><span className="text-white">{target.position || '-'}</span></div>
-                          <div><span className="text-gray-400 text-xs block">Pays</span><span className="text-white">{target.country || '-'}</span></div>
-                          <div><span className="text-gray-400 text-xs block">Bureau</span><span className="text-white">{target.office || '-'}</span></div>
+            {/* Targets List */}
+            {targets.length > 0 ? (
+              <div className="mt-10 bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 p-8">
+                <h4 className="text-2xl font-bold text-white mb-8 flex items-center space-x-4">
+                  <Users className="w-7 h-7 text-cyan-400" />
+                  <span>Cibles ({targets.length})</span>
+                  <CheckCircle className="w-6 h-6 text-green-400" />
+                </h4>
+                <div className="space-y-4 max-h-80 overflow-y-auto">
+                  {targets.map((target) => (
+                    <div key={target.id} className="bg-white/5 rounded-xl p-6 border border-white/10">
+                      {editingTarget === target.id ? (
+                        <EditForm target={target} onSave={saveEdit} onCancel={() => setEditingTarget(null)} />
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="grid grid-cols-6 gap-4 flex-1 text-base">
+                            <div>
+                              <span className="text-gray-400 text-sm block mb-1">Prénom</span>
+                              <span className="text-white font-medium">{target.firstName}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400 text-sm block mb-1">Nom</span>
+                              <span className="text-white font-medium">{target.lastName}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400 text-sm block mb-1">Email</span>
+                              <span className="text-white">{target.email}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400 text-sm block mb-1">Poste</span>
+                              <span className="text-white">{target.position || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400 text-sm block mb-1">Pays</span>
+                              <span className="text-white">{target.country || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400 text-sm block mb-1">Bureau</span>
+                              <span className="text-white">{target.office || '-'}</span>
+                            </div>
+                          </div>
+                          <div className="flex space-x-2 ml-6">
+                            <button 
+                              onClick={() => setEditingTarget(target.id)} 
+                              className="p-3 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-all duration-200 hover:scale-110"
+                            >
+                              <Edit3 className="w-5 h-5" />
+                            </button>
+                            <button 
+                              onClick={() => removeTarget(target.id)} 
+                              className="p-3 hover:bg-red-500/20 text-red-400 rounded-lg transition-all duration-200 hover:scale-110"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex space-x-1 ml-3">
-                          <button onClick={() => setEditingTarget(target.id)} className="p-2 hover:bg-blue-500/20 text-blue-400 rounded">
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => removeTarget(target.id)} className="p-2 hover:bg-red-500/20 text-red-400 rounded">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="bg-white/5 rounded-xl border border-white/10 p-8 text-center">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <h4 className="text-white font-medium mb-1">Aucune cible ajoutée</h4>
-              <p className="text-gray-300 text-sm">Importez un fichier ou ajoutez des cibles manuellement.</p>
-            </div>
-          )}
-        </div>
-      </div>
+            ) : (
+              <div className="mt-10 bg-white/5 rounded-xl border border-white/10 p-12 text-center">
+                <Users className="w-16 h-16 text-gray-400 mx-auto mb-6" />
+                <h4 className="text-white font-semibold mb-3 text-xl">Aucune cible ajoutée</h4>
+                <p className="text-gray-300 text-lg">Importez un fichier ou ajoutez des cibles manuellement pour commencer.</p>
+              </div>
+            )}
 
-      {/* Navigation - Fixed at bottom */}
-      <div className="flex-shrink-0 bg-black/10 backdrop-blur-lg border-t border-white/10 px-6 py-4">
-        <div className="flex justify-between">
-          <button onClick={onBack} className="flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Retour</span>
-          </button>
-          <button onClick={handleNext} disabled={targets.length === 0} className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg disabled:opacity-50">
-            <span>Suivant</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+            {/* Navigation */}
+            <div className="flex justify-between items-center mt-16 pt-10 border-t border-white/10">
+              <button
+                onClick={onBack}
+                className="flex items-center space-x-3 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all duration-300 border border-white/20 text-base font-medium hover:scale-105"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>Retour</span>
+              </button>
+
+              <button
+                onClick={handleNext}
+                disabled={targets.length === 0}
+                className="flex items-center space-x-3 px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 disabled:hover:scale-100 text-base font-medium"
+              >
+                <span>Suivant</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -288,59 +372,101 @@ function ManualTargetForm({ onAdd, onCancel }) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+    <div className="space-y-8">
+      <div className="grid grid-cols-3 gap-6">
         <div>
-          <label className="block text-white text-sm mb-1">Prénom *</label>
+          <label className="block text-white text-lg font-medium mb-3">Prénom *</label>
           <div className="relative">
-            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="text" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Prénom" />
+            <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input 
+              type="text" 
+              value={formData.firstName} 
+              onChange={(e) => setFormData({...formData, firstName: e.target.value})} 
+              className="w-full pl-12 pr-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200" 
+              placeholder="Prénom" 
+            />
           </div>
         </div>
         <div>
-          <label className="block text-white text-sm mb-1">Nom *</label>
+          <label className="block text-white text-lg font-medium mb-3">Nom *</label>
           <div className="relative">
-            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="text" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Nom" />
+            <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input 
+              type="text" 
+              value={formData.lastName} 
+              onChange={(e) => setFormData({...formData, lastName: e.target.value})} 
+              className="w-full pl-12 pr-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200" 
+              placeholder="Nom" 
+            />
           </div>
         </div>
         <div>
-          <label className="block text-white text-sm mb-1">Email *</label>
+          <label className="block text-white text-lg font-medium mb-3">Email *</label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="email@exemple.com" />
+            <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input 
+              type="email" 
+              value={formData.email} 
+              onChange={(e) => setFormData({...formData, email: e.target.value})} 
+              className="w-full pl-12 pr-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200" 
+              placeholder="email@exemple.com" 
+            />
           </div>
         </div>
       </div>
       
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-6">
         <div>
-          <label className="block text-white text-sm mb-1">Poste</label>
-          <input type="text" value={formData.position} onChange={(e) => setFormData({...formData, position: e.target.value})} className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Poste" />
+          <label className="block text-white text-lg font-medium mb-3">Poste</label>
+          <input 
+            type="text" 
+            value={formData.position} 
+            onChange={(e) => setFormData({...formData, position: e.target.value})} 
+            className="w-full px-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200" 
+            placeholder="Poste" 
+          />
         </div>
         <div>
-          <label className="block text-white text-sm mb-1">Pays</label>
+          <label className="block text-white text-lg font-medium mb-3">Pays</label>
           <div className="relative">
-            <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="text" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Pays" />
+            <Globe className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input 
+              type="text" 
+              value={formData.country} 
+              onChange={(e) => setFormData({...formData, country: e.target.value})} 
+              className="w-full pl-12 pr-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200" 
+              placeholder="Pays" 
+            />
           </div>
         </div>
         <div>
-          <label className="block text-white text-sm mb-1">Bureau</label>
+          <label className="block text-white text-lg font-medium mb-3">Bureau</label>
           <div className="relative">
-            <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="text" value={formData.office} onChange={(e) => setFormData({...formData, office: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400" placeholder="Bureau" />
+            <Building className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input 
+              type="text" 
+              value={formData.office} 
+              onChange={(e) => setFormData({...formData, office: e.target.value})} 
+              className="w-full pl-12 pr-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200" 
+              placeholder="Bureau" 
+            />
           </div>
         </div>
       </div>
 
-      <div className="flex justify-end space-x-2">
-        <button onClick={onCancel} className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded border border-white/20">
-          <X className="w-4 h-4" />
+      <div className="flex justify-end space-x-4">
+        <button 
+          onClick={onCancel} 
+          className="flex items-center space-x-3 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-all duration-300 hover:scale-105 text-base font-medium"
+        >
+          <X className="w-5 h-5" />
           <span>Annuler</span>
         </button>
-        <button onClick={handleSubmit} className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded">
-          <Plus className="w-4 h-4" />
+        <button 
+          onClick={handleSubmit} 
+          className="flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-all duration-300 hover:scale-105 text-base font-medium"
+        >
+          <Plus className="w-5 h-5" />
           <span>Ajouter</span>
         </button>
       </div>
@@ -355,49 +481,88 @@ function EditForm({ target, onSave, onCancel }) {
   });
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="block text-white text-sm mb-1">Prénom</label>
+          <label className="block text-white text-base font-medium mb-2">Prénom</label>
           <div className="relative">
             <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="text" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" />
+            <input 
+              type="text" 
+              value={formData.firstName} 
+              onChange={(e) => setFormData({...formData, firstName: e.target.value})} 
+              className="w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-cyan-400 focus:outline-none" 
+            />
           </div>
         </div>
         <div>
-          <label className="block text-white text-sm mb-1">Nom</label>
+          <label className="block text-white text-base font-medium mb-2">Nom</label>
           <div className="relative">
             <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="text" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" />
+            <input 
+              type="text" 
+              value={formData.lastName} 
+              onChange={(e) => setFormData({...formData, lastName: e.target.value})} 
+              className="w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-cyan-400 focus:outline-none" 
+            />
           </div>
         </div>
         <div>
-          <label className="block text-white text-sm mb-1">Email</label>
+          <label className="block text-white text-base font-medium mb-2">Email</label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" />
+            <input 
+              type="email" 
+              value={formData.email} 
+              onChange={(e) => setFormData({...formData, email: e.target.value})} 
+              className="w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-cyan-400 focus:outline-none" 
+            />
           </div>
         </div>
       </div>
       
-      <div className="grid grid-cols-3 gap-3">
-        <input type="text" value={formData.position} onChange={(e) => setFormData({...formData, position: e.target.value})} className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" placeholder="Poste" />
+      <div className="grid grid-cols-3 gap-4">
+        <input 
+          type="text" 
+          value={formData.position} 
+          onChange={(e) => setFormData({...formData, position: e.target.value})} 
+          className="w-full px-3 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-cyan-400 focus:outline-none" 
+          placeholder="Poste" 
+        />
         <div className="relative">
           <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input type="text" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" placeholder="Pays" />
+          <input 
+            type="text" 
+            value={formData.country} 
+            onChange={(e) => setFormData({...formData, country: e.target.value})} 
+            className="w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-cyan-400 focus:outline-none" 
+            placeholder="Pays" 
+          />
         </div>
         <div className="relative">
           <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input type="text" value={formData.office} onChange={(e) => setFormData({...formData, office: e.target.value})} className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded text-white focus:ring-2 focus:ring-cyan-400" placeholder="Bureau" />
+          <input 
+            type="text" 
+            value={formData.office} 
+            onChange={(e) => setFormData({...formData, office: e.target.value})} 
+            className="w-full pl-10 pr-3 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-cyan-400 focus:outline-none" 
+            placeholder="Bureau" 
+          />
         </div>
       </div>
 
-      <div className="flex justify-end space-x-2">
-        <button onClick={onCancel} className="flex items-center space-x-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded border border-white/20">
+      <div className="flex justify-end space-x-3">
+        <button 
+          onClick={onCancel} 
+          className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-all duration-200"
+        >
           <X className="w-4 h-4" />
           <span>Annuler</span>
         </button>
-        <button onClick={() => onSave(target.id, formData)} className="flex items-center space-x-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded">
+        <button 
+          onClick={() => onSave(target.id, formData)} 
+          className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg transition-all duration-200"
+        >
           <Save className="w-4 h-4" />
           <span>Sauvegarder</span>
         </button>
