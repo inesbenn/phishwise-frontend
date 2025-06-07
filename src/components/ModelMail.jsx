@@ -1,15 +1,29 @@
-import React, { useState } from 'react';
-import { Globe, FileText, Plus, X, ChevronLeft, ChevronRight, Calendar, TrendingUp, ExternalLink, Eye } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Globe, FileText, Plus, X, ChevronLeft, ChevronRight, Calendar, TrendingUp, ExternalLink, Eye, Mail, Edit3, Upload, Sparkles, Copy, Download, User, Trash2 } from 'lucide-react';
 
-const ModelMail = ({ campaignId, onNext, onBack }) => {
-  const [selectedCountry, setSelectedCountry] = useState('fr');
-  const [selectedTheme, setSelectedTheme] = useState('cybersecurity');
-  const [selectedNews, setSelectedNews] = useState([]);
-  const [generatedSubjects, setGeneratedSubjects] = useState([]);
-  const [selectedSubjects, setSelectedSubjects] = useState([]);
+const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
+  // State management for various UI elements and data
+  const [selectedCountry, setSelectedCountry] = useState(savedData.selectedCountry || 'fr');
+  const [selectedTheme, setSelectedTheme] = useState(savedData.selectedTheme || 'cybersecurity');
+  const [selectedNews, setSelectedNews] = useState(savedData.selectedNews || []);
+  const [emailTemplates, setEmailTemplates] = useState(savedData.emailTemplates || []); // Consolidated state for all email templates
+  const [selectedTemplates, setSelectedTemplates] = useState(savedData.selectedTemplates || []);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [previewEmail, setPreviewEmail] = useState(null);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState(savedData.activeTab || 'news'); // Sauvegarder l'onglet actif
 
+  // Effect to reset default body/html styles on mount for consistent background
+  useEffect(() => {
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.documentElement.style.margin = '0';
+    document.documentElement.style.padding = '0';
+  }, []);
+
+  // Static data for countries, themes, and mock news/templates
   const countries = [
     { code: 'fr', name: 'France', flag: '🇫🇷' },
     { code: 'us', name: 'États-Unis', flag: '🇺🇸' },
@@ -52,31 +66,15 @@ const ModelMail = ({ campaignId, onNext, onBack }) => {
     }
   ];
 
-  const mockSubjectsTemplates = {
-    1: [
-      "🚨 Alerte sécurité bancaire : Vérification de compte requise",
-      "Mise à jour de sécurité urgente suite aux cyberattaques",
-      "Votre banque renforce sa sécurité - Action requise",
-      "Confirmation d'identité nécessaire après incident de sécurité"
-    ],
-    2: [
-      "Microsoft Security Alert : Mise à jour critique disponible",
-      "Action requise : Vulnérabilité détectée sur votre système",
-      "Mise à jour de sécurité Windows - Installation immédiate",
-      "Votre licence Microsoft nécessite une vérification"
-    ],
-    3: [
-      "Nouvelle politique GDPR : Consentement requis",
-      "Mise à jour de vos préférences de confidentialité",
-      "Conformité GDPR : Validez vos données personnelles",
-      "Action requise pour la protection de vos données"
-    ]
-  };
-
-  const mockEmailTemplates = {
-    "🚨 Alerte sécurité bancaire : Vérification de compte requise": {
+  const mockGeneratedEmailTemplates = [
+    {
+      id: 1,
+      newsId: 1,
       subject: "🚨 Alerte sécurité bancaire : Vérification de compte requise",
       from: "securite@ma-banque.com",
+      fromName: "Service Sécurité Bancaire",
+      category: "Urgent",
+      credibilityLevel: "Élevé",
       body: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #d32f2f; color: white; padding: 15px; border-radius: 8px 8px 0 0;">
@@ -100,333 +98,795 @@ const ModelMail = ({ campaignId, onNext, onBack }) => {
             </p>
           </div>
         </div>
-      `
+      `,
+      generated: true,
+      imported: false,
+      lastModified: new Date().toISOString()
+    },
+    {
+      id: 2,
+      newsId: 2,
+      subject: "Microsoft Security Alert : Mise à jour critique disponible",
+      from: "security@microsoft.com",
+      fromName: "Microsoft Security Team",
+      category: "Technique",
+      credibilityLevel: "Très élevé",
+      body: `
+        <div style="font-family: Segoe UI, Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: #0078d4; color: white; padding: 20px;">
+            <h1 style="margin: 0; font-size: 24px;">Microsoft Security Alert</h1>
+          </div>
+          <div style="background: white; padding: 20px; border: 1px solid #e5e5e5;">
+            <p>Bonjour,</p>
+            <p>Notre équipe de sécurité a identifié des vulnérabilités critiques dans plusieurs produits Microsoft. Une mise à jour immédiate est nécessaire.</p>
+            <div style="background: #fff4ce; padding: 15px; margin: 15px 0; border-left: 4px solid #ffb900;">
+              <strong>Action immédiate requise :</strong><br>
+              Installez la mise à jour de sécurité avant le 10 juin 2025
+            </div>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="#" style="background: #0078d4; color: white; padding: 15px 30px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                INSTALLER LA MISE À JOUR
+              </a>
+            </div>
+            <p style="font-size: 12px; color: #666;">
+              Microsoft Security Team<br>
+              support@microsoft.com
+            </p>
+          </div>
+        </div>
+      `,
+      generated: true,
+      imported: false,
+      lastModified: new Date().toISOString()
     }
-  };
+  ];
 
+  // Initialize emailTemplates with mock generated templates on component mount ONLY if no saved data
+  useEffect(() => {
+    if (!savedData.emailTemplates || savedData.emailTemplates.length === 0) {
+      setEmailTemplates(mockGeneratedEmailTemplates);
+    }
+  }, []);
+
+  /**
+   * Toggles the selection of a news item.
+   * @param {number} newsId - The ID of the news item to toggle.
+   */
   const toggleNewsSelection = (newsId) => {
-    setSelectedNews(prev => {
-      const newSelection = prev.includes(newsId) 
+    setSelectedNews(prev =>
+      prev.includes(newsId)
         ? prev.filter(id => id !== newsId)
-        : [...prev, newsId];
-      
-      if (newSelection.length !== prev.length) {
-        setGeneratedSubjects([]);
-        setSelectedSubjects([]);
-      }
-      
-      return newSelection;
-    });
-  };
-
-  const toggleSubjectSelection = (subject) => {
-    setSelectedSubjects(prev => 
-      prev.includes(subject)
-        ? prev.filter(s => s !== subject)
-        : [...prev, subject]
+        : [...prev, newsId]
     );
   };
 
-  const generateSubjects = () => {
+  /**
+   * Toggles the selection of an email template.
+   * @param {number} templateId - The ID of the template to toggle.
+   */
+  const toggleTemplateSelection = (templateId) => {
+    setSelectedTemplates(prev =>
+      prev.includes(templateId)
+        ? prev.filter(id => id !== templateId)
+        : [...prev, templateId]
+    );
+  };
+
+  /**
+   * Simulates the generation of email templates based on selected news.
+   * This function includes a delay to mimic an API call.
+   */
+  const generateEmailTemplates = async () => {
     if (selectedNews.length === 0) {
-      alert('Veuillez sélectionner au moins une actualité');
+      alert('Veuillez sélectionner au moins une actualité pour générer un modèle.');
       return;
     }
 
-    let allSubjects = [];
-    selectedNews.forEach(newsId => {
-      if (mockSubjectsTemplates[newsId]) {
-        allSubjects = [...allSubjects, ...mockSubjectsTemplates[newsId]];
-      }
-    });
+    setIsGenerating(true);
 
-    const uniqueSubjects = [...new Set(allSubjects)];
-    setGeneratedSubjects(uniqueSubjects);
-    setSelectedSubjects([]);
+    // Simulate API call with a delay
+    setTimeout(() => {
+      const newTemplates = selectedNews.map(newsId => {
+        const news = mockNews.find(n => n.id === newsId);
+        // Check if a generated template for this newsId already exists
+        const existingTemplate = emailTemplates.find(t => t.newsId === newsId && t.generated);
+
+        if (existingTemplate) {
+          // If it exists, return the existing one to prevent duplicates for the same news
+          return existingTemplate;
+        }
+
+        // Generate a new template based on the news
+        return {
+          id: Date.now() + Math.random(), // Unique ID
+          newsId: newsId,
+          subject: `Urgent: ${news.title.substring(0, 50)}...`,
+          from: "info@service-securite.com", // Default 'from' for generated
+          fromName: "Service Sécurité", // Default 'fromName' for generated
+          category: "Généré",
+          credibilityLevel: "Moyen",
+          body: `<p>Template généré automatiquement basé sur: <strong>${news.title}</strong></p><p>${news.excerpt}</p><p>Pour plus d'informations, visitez <a href="#">notre site</a>.</p>`,
+          generated: true,
+          imported: false,
+          lastModified: new Date().toISOString()
+        };
+      });
+
+      setEmailTemplates(prev => {
+        // Filter out old generated templates that correspond to selected news,
+        // then add the newly generated ones. This handles regeneration gracefully.
+        const filteredPrev = prev.filter(t => !selectedNews.includes(t.newsId) || !t.generated);
+        return [...filteredPrev, ...newTemplates];
+      });
+
+      setIsGenerating(false);
+      setActiveTab('templates'); // Switch to templates tab after generation
+    }, 2000);
   };
 
-  const previewEmailTemplate = (subject) => {
-    const template = mockEmailTemplates[subject];
-    if (template) {
-      setPreviewEmail(template);
-      setShowEmailPreview(true);
-    }
+  /**
+   * Sets the email to be previewed and shows the preview modal.
+   * @param {object} template - The template object to preview.
+   */
+  const previewTemplate = (template) => {
+    setPreviewEmail(template);
+    setShowEmailPreview(true);
   };
 
+  /**
+   * Sets the template to be edited and shows the editor modal.
+   * @param {object} template - The template object to edit.
+   */
+  const editTemplate = (template) => {
+    setEditingTemplate({ ...template }); // Create a shallow copy to avoid direct state mutation
+    setShowTemplateEditor(true);
+  };
+
+  /**
+   * Saves the currently editing template back into the emailTemplates state.
+   */
+  const saveTemplate = () => {
+    if (!editingTemplate) return;
+
+    setEmailTemplates(prev =>
+      prev.map(t => t.id === editingTemplate.id ? { ...editingTemplate, lastModified: new Date().toISOString() } : t)
+    );
+
+    setShowTemplateEditor(false);
+    setEditingTemplate(null);
+  };
+
+  /**
+   * Duplicates an existing email template.
+   * @param {object} template - The template object to duplicate.
+   */
+  const duplicateTemplate = (template) => {
+    const duplicated = {
+      ...template,
+      id: Date.now() + Math.random(), // New unique ID
+      subject: `${template.subject} (Copie)`,
+      lastModified: new Date().toISOString()
+    };
+    setEmailTemplates(prev => [...prev, duplicated]);
+  };
+
+  /**
+   * Removes a template from the list.
+   * Note: In a real application, consider a confirmation modal before deleting.
+   * @param {number} idToRemove - The ID of the template to remove.
+   */
+  const removeTemplate = (idToRemove) => {
+    // Filter out the template from selectedTemplates if it was selected
+    setSelectedTemplates(prevSelected => prevSelected.filter(id => id !== idToRemove));
+    // Filter out the template from emailTemplates
+    setEmailTemplates(prev => prev.filter(template => template.id !== idToRemove));
+  };
+
+  /**
+   * Handles the progression to the next step in the wizard.
+   */
   const handleNext = () => {
-    if (selectedSubjects.length === 0) {
-      alert('Veuillez sélectionner au moins un sujet');
+    if (selectedTemplates.length === 0) {
+      alert('Veuillez sélectionner au moins un modèle d\'email pour continuer.');
       return;
     }
-    
-    // Ici vous pouvez sauvegarder les données sélectionnées
+
+    // Sauvegarder TOUTES les données de l'étape
     const wizardData = {
-      campaignId,
       selectedCountry,
       selectedTheme,
       selectedNews,
-      selectedSubjects
+      emailTemplates, // Sauvegarder TOUS les modèles (générés ET importés)
+      selectedTemplates,
+      activeTab // Sauvegarder l'onglet actif
     };
-    
-    console.log('Données de l\'étape Actualités & Sujets:', wizardData);
-    
-    // Appeler la fonction onNext du wizard
+
+    console.log('Données Actualités & Modèles sauvegardées:', wizardData);
+
     if (onNext) {
-      onNext();
+      onNext(null, wizardData); // Passer les données à sauvegarder
     }
   };
 
+  /**
+   * Handles going back to the previous step in the wizard.
+   */
   const handleBack = () => {
     if (onBack) {
       onBack();
     }
   };
 
+  /**
+   * Handles the import of an email template from a file.
+   * Supports HTML, TXT, and JSON files.
+   * @param {Event} event - The file input change event.
+   */
+  const handleFileImport = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const fileContent = e.target.result;
+        let importedBody = fileContent;
+        let importedSubject = `Modèle importé: ${file.name}`;
+        let importedCategory = 'Importé';
+        let importedFromName = 'Modèle Importé';
+
+        // Attempt to parse JSON if the file type suggests it
+        if (file.type === 'application/json' || file.name.endsWith('.json')) {
+          try {
+            const jsonData = JSON.parse(fileContent);
+            // Allow overriding default values if present in JSON
+            importedSubject = jsonData.subject || importedSubject;
+            importedBody = jsonData.body || importedBody;
+            importedFromName = jsonData.fromName || importedFromName;
+            importedCategory = jsonData.category || importedCategory;
+          } catch (error) {
+            console.error("Error parsing JSON file:", error);
+            alert("Erreur lors de la lecture du fichier JSON. Assurez-vous qu'il est bien formaté.");
+            return;
+          }
+        }
+
+        const newTemplate = {
+          id: Date.now() + Math.random(),
+          name: file.name, // Use file name as template name
+          subject: importedSubject,
+          from: `imported_${Date.now()}@template.com`, // Unique 'from' address
+          fromName: importedFromName,
+          category: importedCategory,
+          body: importedBody,
+          generated: false,
+          imported: true,
+          lastModified: new Date().toISOString()
+        };
+        setEmailTemplates(prev => [...prev, newTemplate]);
+        setActiveTab('templates'); // Switch to templates tab after import
+      };
+      reader.readAsText(file);
+    }
+    // Clear the file input value to allow selecting the same file again
+    event.target.value = '';
+  };
+
+  // Filter templates for display in respective sections
+  const generatedTemplates = emailTemplates.filter(t => t.generated);
+  const importedTemplatesForDisplay = emailTemplates.filter(t => t.imported);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div
+      className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-auto"
+      style={{ margin: 0, padding: 0, top: 0, left: 0 }}
+    >
       {/* Header */}
-      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 p-4 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              PhishWise
-            </h1>
-            <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-sm font-medium">
+      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 w-full">
+        <div className="w-full px-8 py-5">
+          <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
+            <div className="flex items-center space-x-6">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                PhishWise
+              </h1>
+              <span className="px-4 py-2 bg-cyan-500/20 text-cyan-300 rounded-full text-base font-medium">
                 Nouvelle Campagne
               </span>
+            </div>
+            {/* User Avatar Placeholder */}
+            <div className="w-10 h-10 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+              <User className="w-6 h-6" />
+            </div>
           </div>
         </div>
       </header>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        
-        {/* Progress Bar */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-white font-semibold">Création de Campagne</h2>
-          </div>
-          <div className="w-full bg-white/10 rounded-full h-2">
-            <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-2 rounded-full" style={{width: '42.86%'}}></div>
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-gray-400">
-            <span>Paramètres</span>
-            <span>Cibles</span>
-            <span className="text-cyan-300">Modèles</span>
-            <span>Landing</span>
-            <span>SMTP</span>
-            <span>Formation</span>
-          </div>
-        </div>
-
-        {/* Main Section */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-white" />
+      <div className="w-full px-8 py-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Progress Bar */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-white">Création de Campagne</h2>
+              <span className="text-lg text-gray-300">Étape 3 sur 7</span>
             </div>
-            <div>
-              <h3 className="text-xl font-semibold text-white">Actualités & Génération de Sujets</h3>
-              <p className="text-gray-300">Sélectionnez des actualités pour générer des sujets de phishing</p>
+            <div className="w-full bg-white/10 rounded-full h-3">
+              <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-3 rounded-full w-[42.86%] transition-all duration-500"></div>
+            </div>
+            <div className="grid grid-cols-7 gap-4 mt-4 text-sm text-gray-400">
+              {['Paramètres', 'Cibles', 'Modèles', "Page d'atterrissage", 'SMTP', 'Formation', 'Finaliser'].map((step, i) => (
+                <span
+                  key={step}
+                  className={`text-center font-medium ${i <= 2 ? 'text-cyan-400' : ''}`}
+                >
+                  {step}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div>
-              <label className="block text-gray-300 text-sm mb-2">Pays</label>
-              <select
-                value={selectedCountry}
-                onChange={(e) => setSelectedCountry(e.target.value)}
-                className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-cyan-400"
-              >
-                {countries.map(country => (
-                  <option key={country.code} value={country.code} className="bg-slate-800">
-                    {country.flag} {country.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-300 text-sm mb-2">Thème</label>
-              <select
-                value={selectedTheme}
-                onChange={(e) => setSelectedTheme(e.target.value)}
-                className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-cyan-400"
-              >
-                {themes.map(theme => (
-                  <option key={theme.id} value={theme.id} className="bg-slate-800">
-                    {theme.icon} {theme.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <button
-                onClick={generateSubjects}
-                disabled={selectedNews.length === 0}
-                className={`w-full px-4 py-2 rounded-lg transition-all ${
-                  selectedNews.length === 0
-                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
-                }`}
-              >
-                Générer Sujets ({selectedNews.length})
-              </button>
-            </div>
-          </div>
-
-          {/* News Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div>
-              <h4 className="text-white font-medium mb-4">Actualités disponibles</h4>
-              <div className="space-y-3">
-                {mockNews.map(news => (
-                  <div
-                    key={news.id}
-                    onClick={() => toggleNewsSelection(news.id)}
-                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                      selectedNews.includes(news.id)
-                        ? 'border-cyan-400 bg-cyan-500/10'
-                        : 'border-white/20 bg-white/5 hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h5 className="text-white font-medium text-sm">{news.title}</h5>
-                        <p className="text-gray-300 text-xs mt-1">{news.excerpt}</p>
-                      </div>
-                      <div className="ml-4 flex items-center space-x-2">
-                        <span className={`w-2 h-2 rounded-full ${news.credibility >= 8 ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
-                        <span className="text-xs text-gray-400">{news.credibility}/10</span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center text-xs text-gray-400">
-                      <span>{news.source}</span>
-                      <span>{news.date}</span>
-                    </div>
-                  </div>
-                ))}
+          {/* Main Section */}
+          <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-10">
+            <div className="flex items-center space-x-6 mb-10">
+              <div className="p-4 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl">
+                <Mail className="w-10 h-10 text-white" />
+              </div>
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-2">Actualités & Modèles d'Emails</h3>
+                <p className="text-lg text-gray-300">Sélectionnez des actualités et générez/personnalisez vos modèles d'emails</p>
               </div>
             </div>
 
-            {/* Generated Subjects */}
-            {generatedSubjects.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-white font-medium">Sujets générés ({generatedSubjects.length})</h4>
-                  <span className="text-cyan-300 text-sm">{selectedSubjects.length} sélectionné(s)</span>
+            {/* Tabs */}
+            <div className="flex space-x-4 mb-8">
+              <button
+                onClick={() => setActiveTab('news')}
+                className={`px-6 py-3 rounded-xl transition-all duration-300 ${
+                  activeTab === 'news'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <TrendingUp className="w-5 h-5" />
+                  <span>Actualités</span>
+                  {selectedNews.length > 0 && (
+                    <span className="bg-cyan-400 text-white text-xs px-2 py-1 rounded-full">
+                      {selectedNews.length}
+                    </span>
+                  )}
                 </div>
-                <div className="space-y-3">
-                  {generatedSubjects.map((subject, index) => (
-                    <div 
-                      key={index} 
-                      className={`p-3 rounded-lg border transition-all ${
-                        selectedSubjects.includes(subject)
-                          ? 'border-green-400 bg-green-500/10'
-                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+              </button>
+              <button
+                onClick={() => setActiveTab('templates')}
+                className={`px-6 py-3 rounded-xl transition-all duration-300 ${
+                  activeTab === 'templates'
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Mail className="w-5 h-5" />
+                  <span>Modèles</span>
+                  {selectedTemplates.length > 0 && (
+                    <span className="bg-purple-400 text-white text-xs px-2 py-1 rounded-full">
+                      {selectedTemplates.length}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
+
+            {/* News Tab Content */}
+            {activeTab === 'news' && (
+              <div className="space-y-8">
+                {/* Filters */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div>
+                    <label htmlFor="country-select" className="block text-gray-300 text-lg mb-3">Pays</label>
+                    <select
+                      id="country-select"
+                      value={selectedCountry}
+                      onChange={(e) => setSelectedCountry(e.target.value)}
+                      className="w-full px-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200"
+                    >
+                      {countries.map(country => (
+                        <option key={country.code} value={country.code} className="bg-slate-800">
+                          {country.flag} {country.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="theme-select" className="block text-gray-300 text-lg mb-3">Thème</label>
+                    <select
+                      id="theme-select"
+                      value={selectedTheme}
+                      onChange={(e) => setSelectedTheme(e.target.value)}
+                      className="w-full px-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200"
+                    >
+                      {themes.map(theme => (
+                        <option key={theme.id} value={theme.id} className="bg-slate-800">
+                          {theme.icon} {theme.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-1 md:col-span-2 flex items-end">
+                    <button
+                      onClick={generateEmailTemplates}
+                      disabled={selectedNews.length === 0 || isGenerating}
+                      className={`w-full px-8 py-4 rounded-xl transition-all duration-300 flex items-center justify-center space-x-4 ${
+                        selectedNews.length === 0 || isGenerating
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-lg font-medium hover:scale-105'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div 
-                          onClick={() => toggleSubjectSelection(subject)}
-                          className="flex items-center space-x-3 flex-1 cursor-pointer"
-                        >
-                          <div className={`w-4 h-4 rounded-full border-2 transition-all ${
-                            selectedSubjects.includes(subject)
-                              ? 'bg-green-400 border-green-400'
-                              : 'border-white/30'
-                          }`}>
-                            {selectedSubjects.includes(subject) && (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-white text-sm flex-1">{subject}</p>
+                      {isGenerating ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span>Génération...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-6 h-6" />
+                          <span>Générer Modèles ({selectedNews.length})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* News Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {mockNews.map(news => (
+                    <div
+                      key={news.id}
+                      onClick={() => toggleNewsSelection(news.id)}
+                      className={`p-6 rounded-xl border cursor-pointer transition-all duration-300 ${
+                        selectedNews.includes(news.id)
+                          ? 'border-cyan-400 bg-cyan-500/10'
+                          : 'border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h5 className="text-white font-medium text-lg mb-2">{news.title}</h5>
+                          <p className="text-gray-300 text-base">{news.excerpt}</p>
                         </div>
-                        {mockEmailTemplates[subject] && (
-                          <button
-                            onClick={() => previewEmailTemplate(subject)}
-                            className="text-cyan-400 hover:text-cyan-300 transition-colors"
-                            title="Aperçu de l'email"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="ml-4 flex items-center space-x-2 flex-shrink-0">
+                          <span className={`w-3 h-3 rounded-full ${news.credibility >= 8 ? 'bg-green-400' : news.credibility >= 5 ? 'bg-yellow-400' : 'bg-red-400'}`}></span>
+                          <span className="text-sm text-gray-400">{news.credibility}/10</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-sm text-gray-400 mt-4">
+                        <span>{news.source}</span>
+                        <span><Calendar className="inline-block w-4 h-4 mr-1" /> {news.date}</span>
                       </div>
                     </div>
                   ))}
                 </div>
-                
-                {selectedSubjects.length > 0 && (
-                  <div className="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <h5 className="text-green-300 font-medium mb-2">Prêt pour l'étape suivante :</h5>
-                    <p className="text-gray-300 text-sm">
-                      {selectedSubjects.length} sujet(s) sélectionné(s). Vous pourrez personnaliser les modèles d'emails à l'étape suivante.
-                    </p>
+              </div>
+            )}
+
+            {/* Templates Tab Content */}
+            {activeTab === 'templates' && (
+              <div className="space-y-8">
+                {/* Template Actions */}
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-4">
+                    <h4 className="text-white font-medium text-xl">Modèles d'Emails</h4>
+                    <span className="text-gray-400 text-base">
+                      {emailTemplates.length} disponible(s) • {selectedTemplates.length} sélectionné(s)
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="file"
+                      id="template-import"
+                      accept=".html,.txt,.json"
+                      onChange={handleFileImport}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="template-import"
+                      className="px-6 py-3 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl hover:bg-blue-500/30 transition-all duration-300 cursor-pointer flex items-center space-x-3 hover:scale-105"
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span>Importer</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Generated Templates */}
+                {generatedTemplates.length > 0 && (
+                  <div>
+                    <h5 className="text-white font-medium mb-4 text-xl">Modèles Générés</h5>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {generatedTemplates.map(template => (
+                        <div
+                          key={template.id}
+                          className={`p-6 rounded-xl border transition-all duration-300 ${
+                            selectedTemplates.includes(template.id)
+                              ? 'border-green-400 bg-green-500/10'
+                              : 'border-white/10 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div
+                              onClick={() => toggleTemplateSelection(template.id)}
+                              className="flex items-start space-x-3 flex-1 cursor-pointer"
+                            >
+                              <div className={`w-5 h-5 rounded-full border-2 transition-all mt-1 flex-shrink-0 ${
+                                selectedTemplates.includes(template.id)
+                                  ? 'bg-green-400 border-green-400'
+                                  : 'border-white/30'
+                              }`}>
+                                {selectedTemplates.includes(template.id) && (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <h6 className="text-white font-medium text-lg">{template.subject}</h6>
+                                <div className="flex flex-wrap items-center space-x-3 mt-2">
+                                  <span className="text-base text-gray-400">De: {template.fromName}</span>
+                                  <span className={`px-3 py-1 rounded-full text-sm ${
+                                    template.category === 'Urgent' ? 'bg-red-500/20 text-red-300' :
+                                    template.category === 'Technique' ? 'bg-blue-500/20 text-blue-300' :
+                                    'bg-gray-500/20 text-gray-300'
+                                  }`}>
+                                    {template.category}
+                                  </span>
+                                  {template.credibilityLevel && (
+                                    <span className="text-sm text-gray-400">
+                                      Crédibilité: {template.credibilityLevel}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
+                              <button
+                                onClick={() => previewTemplate(template)}
+                                className="p-3 text-cyan-400 rounded-lg transition-all duration-200 hover:bg-cyan-500/20 hover:scale-110"
+                                title="Aperçu"
+                              >
+                                <Eye className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => editTemplate(template)}
+                                className="p-3 text-yellow-400 rounded-lg transition-all duration-200 hover:bg-yellow-500/20 hover:scale-110"
+                                title="Modifier"
+                              >
+                                <Edit3 className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => duplicateTemplate(template)}
+                                className="p-3 text-green-400 rounded-lg transition-all duration-200 hover:bg-green-500/20 hover:scale-110"
+                                title="Dupliquer"
+                              >
+                                <Copy className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => removeTemplate(template.id)} // Delete button
+                                className="p-3 text-red-400 rounded-lg transition-all duration-200 hover:bg-red-500/20 hover:scale-110"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Modifié: {new Date(template.lastModified).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Imported Templates */}
+                {importedTemplatesForDisplay.length > 0 && (
+                  <div className="pt-8 border-t border-white/10 mt-8">
+                    <h5 className="text-white font-medium mb-4 text-xl">Modèles Importés</h5>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {importedTemplatesForDisplay.map(template => (
+                        <div
+                          key={template.id}
+                          className={`p-6 rounded-xl border transition-all duration-300 ${
+                            selectedTemplates.includes(template.id)
+                              ? 'border-green-400 bg-green-500/10'
+                              : 'border-white/10 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div
+                              onClick={() => toggleTemplateSelection(template.id)}
+                              className="flex items-start space-x-3 flex-1 cursor-pointer"
+                            >
+                              <div className={`w-5 h-5 rounded-full border-2 transition-all mt-1 flex-shrink-0 ${
+                                selectedTemplates.includes(template.id)
+                                  ? 'bg-green-400 border-green-400'
+                                  : 'border-white/30'
+                              }`}>
+                                {selectedTemplates.includes(template.id) && (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <h6 className="text-white font-medium text-lg">{template.name || template.subject}</h6>
+                                <div className="flex flex-wrap items-center space-x-3 mt-2">
+                                  <span className="text-base text-gray-400">De: {template.fromName}</span>
+                                  <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm">
+                                    {template.category}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
+                              <button
+                                onClick={() => previewTemplate(template)}
+                                className="p-3 text-cyan-400 rounded-lg transition-all duration-200 hover:bg-cyan-500/20 hover:scale-110"
+                                title="Aperçu"
+                              >
+                                <Eye className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => editTemplate(template)}
+                                className="p-3 text-yellow-400 rounded-lg transition-all duration-200 hover:bg-yellow-500/20 hover:scale-110"
+                                title="Modifier"
+                              >
+                                <Edit3 className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => duplicateTemplate(template)}
+                                className="p-3 text-green-400 rounded-lg transition-all duration-200 hover:bg-green-500/20 hover:scale-110"
+                                title="Dupliquer"
+                              >
+                                <Copy className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => removeTemplate(template.id)} // Delete button
+                                className="p-3 text-red-400 rounded-lg transition-all duration-200 hover:bg-red-500/20 hover:scale-110"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Modifié: {new Date(template.lastModified).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             )}
           </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex justify-between items-center mt-10 p-4 bg-white/5 rounded-2xl border border-white/10">
+            <button
+              onClick={handleBack}
+              className="flex items-center space-x-2 px-6 py-3 bg-white/10 text-gray-300 rounded-lg hover:bg-white/20 transition-all duration-300 hover:scale-105"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span>Retour</span>
+            </button>
+            <button
+              onClick={handleNext}
+              disabled={selectedTemplates.length === 0}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-all duration-300 ${
+                selectedTemplates.length === 0
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-medium hover:scale-105'
+              }`}
+            >
+              <span>Continuer</span>
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Email Preview Modal */}
-      {showEmailPreview && previewEmail && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="bg-gray-800 text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Aperçu de l'email généré</h3>
-              <button
-                onClick={() => setShowEmailPreview(false)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
+      {showEmailPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full h-3/4 flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
+              <h3 className="text-xl font-semibold text-gray-800">Aperçu de l'Email</h3>
+              <button onClick={() => setShowEmailPreview(false)} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><strong>De :</strong> {previewEmail.from}</div>
-                  <div><strong>Sujet :</strong> {previewEmail.subject}</div>
-                </div>
-              </div>
-              <div className="border rounded-lg overflow-hidden">
-                <div dangerouslySetInnerHTML={{ __html: previewEmail.body }} />
-              </div>
+            <div className="flex-1 overflow-auto p-4 bg-gray-100">
+              {previewEmail && (
+                <div
+                  className="bg-white p-6 rounded-lg shadow-md"
+                  dangerouslySetInnerHTML={{ __html: previewEmail.body }}
+                />
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowEmailPreview(false)}
+                className="px-6 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition-colors"
+              >
+                Fermer
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Navigation */}
-      <div className="bg-black/10 backdrop-blur-lg border-t border-white/10 p-4">
-        <div className="max-w-7xl mx-auto flex justify-between">
-          <button 
-            onClick={handleBack}
-            className="flex items-center space-x-2 px-6 py-2 border border-white/20 text-white rounded-lg hover:bg-white/5 transition-all"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span>Retour</span>
-          </button>
-          <button
-            onClick={handleNext}
-            disabled={selectedSubjects.length === 0}
-            className={`flex items-center space-x-2 px-6 py-2 rounded-lg transition-all ${
-              selectedSubjects.length === 0
-                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-cyan-400 to-purple-400 hover:from-cyan-500 hover:to-purple-500 text-white'
-            }`}
-          >
-            <span>Suivant</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
+      {/* Template Editor Modal */}
+      {showTemplateEditor && editingTemplate && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full h-5/6 flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
+              <h3 className="text-xl font-semibold text-gray-800">Modifier le Modèle</h3>
+              <button onClick={() => setShowTemplateEditor(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-6 space-y-6 bg-gray-100">
+              {/* Subject field */}
+              <div>
+                <label htmlFor="edit-subject" className="block text-gray-700 text-sm font-bold mb-2">Sujet:</label>
+                <input
+                  id="edit-subject"
+                  type="text"
+                  value={editingTemplate.subject}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              {/* Category field */}
+              <div>
+                <label htmlFor="edit-category" className="block text-gray-700 text-sm font-bold mb-2">Catégorie:</label>
+                <input
+                  id="edit-category"
+                  type="text"
+                  value={editingTemplate.category}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, category: e.target.value })}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              {/* HTML Content field */}
+              <div>
+                <label htmlFor="edit-body" className="block text-gray-700 text-sm font-bold mb-2">Contenu HTML:</label>
+                <textarea
+                  id="edit-body"
+                  value={editingTemplate.body}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
+                  rows="15"
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                ></textarea>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowTemplateEditor(false)}
+                className="px-6 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={saveTemplate}
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Sauvegarder
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
