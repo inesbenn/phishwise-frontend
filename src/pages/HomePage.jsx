@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-
+import LearningPagesManagement from './LearningPagesManagement';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { 
   Shield, 
   Users, 
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
     { id: 2, name: "Simulation IT Support", status: "active", sent: 156, opened: 67, clicked: 8, completion: 45, progress: 60 },
     { id: 3, name: "Test Phishing RH", status: "completed", sent: 89, opened: 78, clicked: 3, completion: 92, progress: 100 }
   ]);
+const navigate = useNavigate();
 
   const [recentActivity, setRecentActivity] = useState([
     { time: "Il y a 5 min", action: "12 employés ont terminé leur formation", type: "success" },
@@ -224,9 +226,9 @@ export default function AdminDashboard() {
             </div>
             <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
           </button>
-
+          
           <button
-            onClick={() => window.location.href = '/learning-pages'}
+            onClick={() => navigate('/learning-pages')}
             className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
           >
             <div className="flex items-center space-x-3 sm:space-x-4">

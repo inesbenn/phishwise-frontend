@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 import HomePage  from './pages/HomePage';
 import UsersPage from './pages/UsersPage';
 import CampaignWizard from './pages/CampaignWizard';
+import LearningPagesManagement from './pages/LearningPagesManagement';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -23,6 +24,8 @@ export default function App() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/campaign-wizard" element={<CampaignWizard />} />
+        <Route path="/learning-pages" element={<LearningPagesManagement />} />
+        {/* Ajoutez d'autres routes ici si nécessaire */}
 
       </Routes>
     </BrowserRouter>
