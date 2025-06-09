@@ -69,7 +69,7 @@ export default function FullScreenUsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      setError('');
+      setError(''); // Clear global error on new fetch
       const data = await apiCall('GET', '/users');
       setUsers(data);
     } catch (err) {
@@ -110,6 +110,9 @@ export default function FullScreenUsersPage() {
         role: 'User',
         status: 'active',
       });
+      // Clear messages when modal opens
+      setError('');
+      setSuccess('');
     }
   }, [editData, showModal]);
 
@@ -162,15 +165,36 @@ export default function FullScreenUsersPage() {
    * @param {object} data - The user data from the form.
    */
   const handleSubmit = async () => {
+    // Clear previous modal-specific error/success messages
+    setError('');
+    setSuccess('');
+
     // Basic client-side validation
     if (!modalFormData.firstName || !modalFormData.lastName || !modalFormData.email) {
       setError('Tous les champs requis doivent être remplis.');
       return;
     }
 
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(modalFormData.email)) {
+      setError('Le format de l\'e-mail est incorrect. Veuillez entrer un e-mail valide.');
+      return;
+    }
+
+    // Email uniqueness validation
+    const isDuplicateEmail = users.some(user => 
+      user.email === modalFormData.email && 
+      (editData ? user._id !== editData._id : true) // Allow existing user's own email during edit
+    );
+
+    if (isDuplicateEmail) {
+      setError('Cette adresse e-mail est déjà utilisée par un autre utilisateur.');
+      return;
+    }
+
     try {
       setSubmitting(true);
-      setError('');
       if (editData && editData._id) {
         // Update existing user
         const updatedUser = await apiCall('PUT', `/users/${editData._id}`, modalFormData);
@@ -271,15 +295,15 @@ export default function FullScreenUsersPage() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden font-inter">
-      {/* Notifications */}
-      {success && (
+      {/* Notifications - These are now global, but specific modal errors will be handled in modal */}
+      {success && !showModal && ( // Only show global success if modal is not open
         <div className="fixed top-4 right-4 z-50 bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg flex items-center space-x-2 backdrop-blur-lg animate-fade-in-down">
           <CheckCircle className="w-4 h-4" />
           <span className="text-sm">{success}</span>
         </div>
       )}
       
-      {error && (
+      {error && !showModal && ( // Only show global error if modal is not open
         <div className="fixed top-4 right-4 z-50 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg flex items-center space-x-2 backdrop-blur-lg animate-fade-in-down">
           <AlertCircle className="w-4 h-4" />
           <span className="text-sm">{error}</span>
@@ -373,31 +397,33 @@ export default function FullScreenUsersPage() {
         </div>
 
         {/* Controls */}
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-4 mb-6 shadow-lg">
+        <div className="bg-slate-800/70 backdrop-blur-lg rounded-xl border border-white/20 p-4 mb-6 shadow-lg"> {/* Changed background to bg-slate-800/70 */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
               <select
                 value={roleFilter}
                 onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
-                className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm w-full sm:w-auto"
+                // Changed background to bg-slate-700 for better visibility of options
+                className="px-4 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm w-full sm:w-auto"
               >
-                <option value="">Tous les rôles</option>
-                <option value="Admin">Admin</option>
-                <option value="Manager">Manager</option>
-                <option value="Analyste">Analyste</option>
-                <option value="Cible">Cible</option>
+                <option value="" className="bg-slate-700 text-white">Tous les rôles</option>
+                <option value="Admin" className="bg-slate-700 text-white">Admin</option>
+                <option value="Manager" className="bg-slate-700 text-white">Manager</option>
+                <option value="Analyste" className="bg-slate-700 text-white">Analyste</option>
+                <option value="Cible" className="bg-slate-700 text-white">Cible</option>
               </select>
 
               <select
                 value={statusFilter}
                 onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm w-full sm:w-auto"
+                // Changed background to bg-slate-700 for better visibility of options
+                className="px-4 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm w-full sm:w-auto"
               >
-                <option value="">Tous les statuts</option>
-                <option value="active">Actif</option>
-                <option value="inactive">Inactif</option>
-                <option value="suspended">Suspendu</option>
-                <option value="pending">En attente</option>
+                <option value="" className="bg-slate-700 text-white">Tous les statuts</option>
+                <option value="active" className="bg-slate-700 text-white">Actif</option>
+                <option value="inactive" className="bg-slate-700 text-white">Inactif</option>
+                <option value="suspended" className="bg-slate-700 text-white">Suspendu</option>
+                <option value="pending" className="bg-slate-700 text-white">En attente</option>
               </select>
             </div>
 
@@ -539,7 +565,23 @@ export default function FullScreenUsersPage() {
       {/* User Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-slate-800/90 backdrop-blur-lg rounded-2xl border border-white/20 w-full max-w-md shadow-xl animate-scale-in">
+          <div className="bg-slate-800/90 backdrop-blur-lg rounded-2xl border border-white/20 w-full max-w-md shadow-xl animate-scale-in relative"> {/* Added relative positioning */}
+            
+            {/* Modal-specific Notifications */}
+            {success && (
+              <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] z-50 bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg flex items-center space-x-2 backdrop-blur-lg animate-fade-in-down">
+                <CheckCircle className="w-4 h-4" />
+                <span className="text-sm">{success}</span>
+              </div>
+            )}
+            
+            {error && (
+              <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 w-[calc(100%-2rem)] z-50 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg flex items-center space-x-2 backdrop-blur-lg animate-fade-in-down">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-white">
@@ -587,13 +629,14 @@ export default function FullScreenUsersPage() {
                   required
                   value={modalFormData.role}
                   onChange={(e) => setModalFormData({ ...modalFormData, role: e.target.value })}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
+                  // Changed background to bg-slate-700 for better visibility of options
+                  className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
                 >
-                  <option value="User">User</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Analyste">Analyste</option>
-                  <option value="Cible">Cible</option>
+                  <option value="User" className="bg-slate-700 text-white">User</option>
+                  <option value="Manager" className="bg-slate-700 text-white">Manager</option>
+                  <option value="Admin" className="bg-slate-700 text-white">Admin</option>
+                  <option value="Analyste" className="bg-slate-700 text-white">Analyste</option>
+                  <option value="Cible" className="bg-slate-700 text-white">Cible</option>
                 </select>
 
                 <select
@@ -601,12 +644,13 @@ export default function FullScreenUsersPage() {
                   required
                   value={modalFormData.status}
                   onChange={(e) => setModalFormData({ ...modalFormData, status: e.target.value })}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
+                  // Changed background to bg-slate-700 for better visibility of options
+                  className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
                 >
-                  <option value="active">Actif</option>
-                  <option value="inactive">Inactif</option>
-                  <option value="suspended">Suspendu</option>
-                  <option value="pending">En attente</option>
+                  <option value="active" className="bg-slate-700 text-white">Actif</option>
+                  <option value="inactive" className="bg-slate-700 text-white">Inactif</option>
+                  <option value="suspended" className="bg-slate-700 text-white">Suspendu</option>
+                  <option value="pending" className="bg-slate-700 text-white">En attente</option>
                 </select>
 
                 <div className="flex justify-end space-x-3 pt-4">
