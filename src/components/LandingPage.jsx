@@ -429,7 +429,7 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       <h5 className="text-white font-medium text-lg">Téléchargement</h5>
                     </div>
                     <p className="text-gray-400 text-base">
-                      Téléchargement automatique du fichier de test (optionnel)
+                      Téléchargement automatique du fichier de test 
                     </p>
                   </div>
                 </div>

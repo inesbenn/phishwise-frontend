@@ -6,8 +6,10 @@ import ModelMail from '../components/ModelMail';
 import LandingPage from '../components/LandingPage'; 
 import SMTP from '../components/SMTP';
 import LearningPage from '../components/LearningPage'; 
+import PhishWiseFinalValidation from '../components/PhishWiseFinalValidation';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
 
 const TOTAL_STEPS = 7; 
 
@@ -91,6 +93,16 @@ export default function CampaignWizard() {
       });
     }
 
+    // À l'étape 6, finaliser la campagne
+    if (step === 6 && formData) {
+      toast.success('Campagne finalisée avec succès !', {
+        position: 'top-center',
+        autoClose: 3000
+      });
+      // Ici vous pouvez ajouter la logique pour rediriger vers la liste des campagnes
+      // ou afficher un message de succès final
+    }
+
     setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
   };
 
@@ -155,23 +167,20 @@ export default function CampaignWizard() {
       break;
     case 6:
       CurrentStep = (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-          <div className="text-center text-white">
-            <h2 className="text-3xl font-bold mb-4">Campagne Configurée !</h2>
-            <p className="text-gray-300">Votre campagne de phishing éducatif est prête.</p>
-            <div className="mt-8 p-4 bg-white/10 rounded-lg max-w-2xl mx-auto">
-              <h3 className="text-xl font-semibold mb-4">Résumé de la campagne :</h3>
-              <div className="text-left space-y-2">
-                <p><strong>Étape 0:</strong> {Object.keys(step0Data).length} paramètres généraux</p>
-                <p><strong>Étape 1:</strong> {Object.keys(step1Data).length} configurations de cibles</p>
-                <p><strong>Étape 2:</strong> {step2Data.selectedTemplates?.length || 0} modèles d'emails sélectionnés</p>
-                <p><strong>Étape 3:</strong> {Object.keys(step3Data).length} configurations de landing page</p>
-                <p><strong>Étape 4:</strong> {Object.keys(step4Data).length} configurations SMTP</p>
-                <p><strong>Étape 5:</strong> {Object.keys(step5Data).length} configurations de formation</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PhishWiseFinalValidation
+          campaignId={campaignId}
+          onNext={handleNext}
+          onBack={handleBack}
+          // Passer toutes les données des étapes précédentes
+          allStepsData={{
+            step0: step0Data,
+            step1: step1Data,
+            step2: step2Data,
+            step3: step3Data,
+            step4: step4Data,
+            step5: step5Data
+          }}
+        />
       );
       break;
 

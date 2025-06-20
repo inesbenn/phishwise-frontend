@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios'; // Importez axios pour les requêtes HTTP
 import {
   ArrowRight,
   ArrowLeft,
@@ -7,7 +8,8 @@ import {
   Target,
   Shield,
   Info,
-  CheckCircle
+  CheckCircle,
+  XCircle // Ajouté pour les icônes d'erreur
 } from 'lucide-react';
 
 export default function Step0_General({ onNext, savedData = {} }) {
@@ -25,6 +27,9 @@ export default function Step0_General({ onNext, savedData = {} }) {
     launchTime: savedData.launchTime || ''
   });
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false); // État de chargement
+  const [apiError, setApiError] = useState(''); // Message d'erreur API
+  const [apiSuccess, setApiSuccess] = useState(''); // Message de succès API
 
   // Load saved data on mount - no localStorage dependency
   useEffect(() => {
@@ -38,6 +43,8 @@ export default function Step0_General({ onNext, savedData = {} }) {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+    setApiError(''); // Efface les messages d'erreur API lors de la modification des champs
+    setApiSuccess(''); // Efface les messages de succès API lors de la modification des champs
   };
 
   const validateForm = () => {
@@ -54,24 +61,66 @@ export default function Step0_General({ onNext, savedData = {} }) {
     } else {
       const [year, month, day] = formData.launchDate.split('-');
       const [hour, minute] = (formData.launchTime || '00:00').split(':');
-      const selectedDate = new Date(year, month - 1, day, hour, minute);
-      if (selectedDate <= new Date()) {
-        newErrors.launchDate = 'La date doit être dans le futur';
+      // Utilisation de `new Date()` avec le format ISO pour éviter les problèmes de fuseau horaire si la chaîne est valide
+      const selectedDate = new Date(`${formData.launchDate}T${formData.launchTime || '00:00'}:00Z`);
+
+      // Correction : Assurez-vous que la comparaison est robuste.
+      // La date et l'heure actuelles en UTC pour une comparaison juste.
+      const now = new Date();
+      if (selectedDate <= now) {
+        newErrors.launchDate = 'La date et l\'heure doivent être dans le futur';
       }
     }
 
     if (!formData.launchTime) {
-      newErrors.launchTime = 'L heure de lancement est obligatoire';
+      newErrors.launchTime = 'L\'heure de lancement est obligatoire';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    setApiError(''); // Réinitialiser l'erreur API
+    setApiSuccess(''); // Réinitialiser le succès API
+
     if (validateForm()) {
-      const campaignId = `campaign_${Date.now()}`;
-      onNext(campaignId, formData);
+      setLoading(true);
+      try {
+        // Combiner date et heure au format ISO 8601 que le backend attend
+        const startDateISO = new Date(`${formData.launchDate}T${formData.launchTime}:00Z`).toISOString();
+
+        const campaignData = {
+          name: formData.campaignName,
+          startDate: startDateISO
+        };
+
+        // Supposons que votre backend tourne sur localhost:3000
+        const response = await axios.post('http://localhost:3000/api/campaigns', campaignData);
+
+        if (response.status === 201) {
+          const createdCampaign = response.data;
+          setApiSuccess(`Campagne créée avec succès ! ID: ${createdCampaign._id}`);
+          // Appeler onNext avec l'ID de la campagne créée
+          onNext(createdCampaign._id, formData);
+        } else {
+          setApiError('Une erreur inattendue est survenue.');
+        }
+      } catch (err) {
+        console.error("Erreur lors de la création de la campagne:", err);
+        if (err.response && err.response.data && err.response.data.message) {
+          setApiError(err.response.data.message);
+        } else if (err.response && err.response.data && err.response.data.errors) {
+            // Gérer les erreurs de validation du backend si elles sont renvoyées
+            const backendErrors = err.response.data.errors.map(e => e.msg || e.message).join(', ');
+            setApiError(`Erreurs: ${backendErrors}`);
+        }
+        else {
+          setApiError('Erreur de connexion au serveur ou problème inconnu.');
+        }
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -241,6 +290,20 @@ export default function Step0_General({ onNext, savedData = {} }) {
                 </div>
               </div>
 
+              {/* API Feedback */}
+              {apiError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center space-x-3 text-red-300 text-base">
+                  <XCircle className="w-5 h-5 flex-shrink-0" />
+                  <span>{apiError}</span>
+                </div>
+              )}
+              {apiSuccess && (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-center space-x-3 text-green-300 text-base">
+                  <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                  <span>{apiSuccess}</span>
+                </div>
+              )}
+
               {/* Preview */}
               {isComplete && (
                 <div className="bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/30 rounded-xl p-8 mt-12">
@@ -270,7 +333,7 @@ export default function Step0_General({ onNext, savedData = {} }) {
                     </div>
                   </div>
                 </div>
-            )}
+              )}
 
               {/* Navigation - Boutons plus petits */}
               <div className="flex justify-between items-center mt-16 pt-10 border-t border-white/10">
@@ -284,11 +347,18 @@ export default function Step0_General({ onNext, savedData = {} }) {
 
                 <button
                   onClick={handleNext}
-                  disabled={!isComplete}
+                  disabled={!isComplete || loading} // Désactiver pendant le chargement
                   className="flex items-center space-x-3 px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 disabled:hover:scale-100 text-base font-medium"
                 >
-                  <span>Suivant</span>
-                  <ArrowRight className="w-5 h-5" />
+                  {loading ? ( // Afficher un spinner ou un texte de chargement
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <ArrowRight className="w-5 h-5" />
+                  )}
+                  <span>{loading ? 'Chargement...' : 'Suivant'}</span>
                 </button>
               </div>
             </div>

@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+/*import {
+  getTargets,
+  updateStep1,
+  updateTarget,
+  deleteTarget
+} from '@/api/campaigns';*/
+
+
+import { updateStep1 } from "../api/campaigns";
 import { ArrowRight, ArrowLeft, Users, Upload, X, Edit3, Trash2, Save, User, Mail, Globe, Building, Plus, Info, CheckCircle } from 'lucide-react';
 
 export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = () => {}, onBack = () => {}, savedData = {} }) {
@@ -135,19 +144,21 @@ export default function Step1_Targets({ campaignId = "CAMP-2024-001", onNext = (
 
   const removeTarget = (id) => setTargets(targets.filter(target => target.id !== id));
 
-  const handleNext = () => {
-    if (targets.length === 0) {
-      alert('Veuillez ajouter au moins une cible avant de continuer.');
-      return;
-    }
-    
-    // Sauvegarder les données avant de passer à l'étape suivante
-    const step1FormData = {
-      targets: targets
-    };
-    
-    onNext(null, step1FormData);
-  };
+const handleNext = async () => {
+  if (targets.length === 0) {
+    alert('Veuillez ajouter au moins une cible avant de continuer.');
+    return;
+  }
+  try {
+    // Envoi batch au backend via ton controller updateStep1
+    await updateStep1(campaignId, targets);
+    // Si tout s'est bien passé, on passe à l'étape suivante
+    onNext(null, { targets });
+  } catch (err) {
+    console.error('Erreur updateStep1:', err);
+    alert("Erreur lors de la sauvegarde des cibles");
+  }
+};
 
   return (
     <div

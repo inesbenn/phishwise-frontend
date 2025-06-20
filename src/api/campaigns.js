@@ -22,7 +22,7 @@ export const updateStep1 = (id, targets) =>
 export function getTargets(id) {
   return client.get(`/campaigns/${id}/targets`).then(res => res.data);
 }
-
+/*
 export function updateTarget(campaignId, targetId, data) {
   return client
     .put(`/campaigns/${campaignId}/targets/${targetId}`, data)
@@ -31,9 +31,9 @@ export function updateTarget(campaignId, targetId, data) {
 
 /**
  * Supprime une cible d'une campagne
- */
+ *
 export function deleteTarget(campaignId, targetId) {
   return client
     .delete(`/campaigns/${campaignId}/targets/${targetId}`)
     .then(res => res.data);
-}
+}*/
