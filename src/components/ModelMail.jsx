@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { countries as staticCountries } from '../utils/countries';
 import { Globe, FileText, Plus, X, ChevronLeft, ChevronRight, Calendar, TrendingUp, ExternalLink, Eye, Mail, Edit3, Upload, Sparkles, Copy, Download, User, Trash2 } from 'lucide-react';
+import {
+  getNewsThemes,
+  getNewsCountries,
+  fetchCampaignNews,
+  saveSelectedNews,
+  generateAISuggestions,
+  getCampaignStep2Data,
+  updateCampaignStep2Data
+} from '../api/campaigns';
 
 const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
   // State management for various UI elements and data
@@ -15,6 +25,10 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState(savedData.activeTab || 'news'); // Sauvegarder l'onglet actif
 
+  const [availableCountries, setAvailableCountries] = useState([]);
+  const [availableThemes, setAvailableThemes] = useState([]);
+  const [availableNews, setAvailableNews]       = useState([]);
+  const [isLoadingNews, setIsLoadingNews]       = useState(false);
   // Effect to reset default body/html styles on mount for consistent background
   useEffect(() => {
     document.body.style.margin = '0';
@@ -23,13 +37,82 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
     document.documentElement.style.padding = '0';
   }, []);
 
+useEffect(() => {
+  getNewsCountries()
+    .then(response => {
+      if (response.success) {
+        setAvailableCountries(response.data);
+      } else {
+        console.error('newsCountries error', response);
+        setAvailableCountries(staticCountries);
+      }
+    })
+    .catch(err => {
+      console.error('newsCountries failed, fallback', err);
+      setAvailableCountries(staticCountries);
+    });
+
+  getNewsThemes()
+    .then(response => {
+      if (response.success) {
+        setAvailableThemes(response.data);
+      } else {
+        console.error('newsThemes error', response);
+      }
+    })
+    .catch(console.error);
+}, []);
+
+
+useEffect(() => {
+  if (!campaignId) return;
+  setIsLoadingNews(true);
+
+  fetchCampaignNews(campaignId, {
+    country: selectedCountry,
+    theme:   selectedTheme,
+    credibility: 0,
+    limit: 20
+  })
+    .then(response => {
+      if (response.success) {
+        setAvailableNews(response.data.news);
+      } else {
+        console.error('fetchCampaignNews error', response);
+      }
+    })
+    .catch(err => console.error('fetchCampaignNews error', err))
+    .finally(() => setIsLoadingNews(false));
+}, [campaignId, selectedCountry, selectedTheme]);
+
+
+useEffect(() => {
+  if (!campaignId) return;
+  getCampaignStep2Data(campaignId)
+    .then(response => {
+      if (response.success) {
+        const { filters, news } = response.data;
+        setSelectedCountry(filters.country);
+        setSelectedTheme(filters.theme);
+        setSelectedNews(news.map(n => n.id));
+        setAvailableNews(news);
+      }
+    })
+    .catch(console.error);
+}, [campaignId]);
+
+
+
+
+
   // Static data for countries, themes, and mock news/templates
-  const countries = [
+  /*const countries = [
+    { code: 'tn', name: 'Tunisie', flag: '🇹🇳' },
     { code: 'fr', name: 'France', flag: '🇫🇷' },
     { code: 'us', name: 'États-Unis', flag: '🇺🇸' },
     { code: 'de', name: 'Allemagne', flag: '🇩🇪' },
     { code: 'gb', name: 'Royaume-Uni', flag: '🇬🇧' }
-  ];
+  ];*/
 
   const themes = [
     { id: 'cybersecurity', name: 'Cybersécurité', icon: '🔒' },
@@ -152,13 +235,28 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
    * Toggles the selection of a news item.
    * @param {number} newsId - The ID of the news item to toggle.
    */
-  const toggleNewsSelection = (newsId) => {
-    setSelectedNews(prev =>
-      prev.includes(newsId)
-        ? prev.filter(id => id !== newsId)
-        : [...prev, newsId]
-    );
-  };
+  const toggleNewsSelection = async (newsId) => {
+  // Calcul de la nouvelle liste de sélection
+  const newList = selectedNews.includes(newsId)
+    ? selectedNews.filter(id => id !== newsId)
+    : [...selectedNews, newsId];
+
+  // Mise à jour du state local
+  setSelectedNews(newList);
+
+  // Préparation des objets à envoyer au backend
+  const newsObjects = newList.map(id =>
+    availableNews.find(n => n.id === id)
+  );
+
+  // Envoi de la sélection au serveur
+  try {
+    await saveSelectedNews(campaignId, newsObjects);
+  } catch (err) {
+    console.error('Erreur lors de saveSelectedNews :', err);
+  }
+};
+
 
   /**
    * Toggles the selection of an email template.
@@ -488,7 +586,7 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       onChange={(e) => setSelectedCountry(e.target.value)}
                       className="w-full px-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200"
                     >
-                      {countries.map(country => (
+                      {Array.isArray(availableCountries) && availableCountries.map(country => (
                         <option key={country.code} value={country.code} className="bg-slate-800">
                           {country.flag} {country.name}
                         </option>
@@ -504,7 +602,7 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       onChange={(e) => setSelectedTheme(e.target.value)}
                       className="w-full px-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200"
                     >
-                      {themes.map(theme => (
+                      {availableThemes.map(theme => (
                         <option key={theme.id} value={theme.id} className="bg-slate-800">
                           {theme.icon} {theme.name}
                         </option>
@@ -537,35 +635,52 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                   </div>
                 </div>
 
-                {/* News Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {mockNews.map(news => (
-                    <div
-                      key={news.id}
-                      onClick={() => toggleNewsSelection(news.id)}
-                      className={`p-6 rounded-xl border cursor-pointer transition-all duration-300 ${
-                        selectedNews.includes(news.id)
-                          ? 'border-cyan-400 bg-cyan-500/10'
-                          : 'border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex-1">
-                          <h5 className="text-white font-medium text-lg mb-2">{news.title}</h5>
-                          <p className="text-gray-300 text-base">{news.excerpt}</p>
-                        </div>
-                        <div className="ml-4 flex items-center space-x-2 flex-shrink-0">
-                          <span className={`w-3 h-3 rounded-full ${news.credibility >= 8 ? 'bg-green-400' : news.credibility >= 5 ? 'bg-yellow-400' : 'bg-red-400'}`}></span>
-                          <span className="text-sm text-gray-400">{news.credibility}/10</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center text-sm text-gray-400 mt-4">
-                        <span>{news.source}</span>
-                        <span><Calendar className="inline-block w-4 h-4 mr-1" /> {news.date}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+               {/* News Grid */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  {isLoadingNews ? (
+    <div className="col-span-full text-center text-white text-lg">
+      Chargement des actualités…
+    </div>
+  ) : (
+    availableNews.map(news => (
+      <div
+        key={news.id}
+        onClick={() => toggleNewsSelection(news.id)}
+        className={`p-6 rounded-xl border cursor-pointer transition-all duration-300 ${
+          selectedNews.includes(news.id)
+            ? 'border-cyan-400 bg-cyan-500/10'
+            : 'border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+        }`}
+      >
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex-1">
+            <h5 className="text-white font-medium text-lg mb-2">{news.title}</h5>
+            <p className="text-gray-300 text-base">{news.excerpt}</p>
+          </div>
+          <div className="ml-4 flex items-center space-x-2 flex-shrink-0">
+            <span
+              className={`w-3 h-3 rounded-full ${
+                news.credibility >= 8
+                  ? 'bg-green-400'
+                  : news.credibility >= 5
+                  ? 'bg-yellow-400'
+                  : 'bg-red-400'
+              }`}
+            ></span>
+            <span className="text-sm text-gray-400">{news.credibility}/10</span>
+          </div>
+        </div>
+        <div className="flex justify-between items-center text-sm text-gray-400 mt-4">
+          <span>{news.source}</span>
+          <span>
+            <Calendar className="inline-block w-4 h-4 mr-1" /> {news.date}
+          </span>
+        </div>
+      </div>
+    ))
+  )}
+</div>
+
               </div>
             )}
 
