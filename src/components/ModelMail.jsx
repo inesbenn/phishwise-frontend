@@ -9,7 +9,65 @@ import {
   generateAISuggestions,
   getCampaignStep2Data,
   updateCampaignStep2Data
-} from '../api/campaigns';
+} from '../api/campaigns'; // Assuming these API functions exist
+
+// Helper functions for news detail modal (added by user)
+// Fonction pour formater le contenu de l'actualité avec priorité aux données NewsAPI
+const formatNewsContent = (newsItem) => {
+  if (!newsItem) return 'Contenu non disponible';
+  
+  // Priorité 1: content de NewsAPI (le plus complet)
+  if (newsItem.content && newsItem.content !== '[Removed]') {
+    return newsItem.content;
+  }
+  
+  // Priorité 2: description de NewsAPI (souvent plus détaillée)
+  if (newsItem.description && newsItem.description.length > (newsItem.excerpt?.length || 0)) {
+    return newsItem.description;
+  }
+  
+  // Priorité 3: fullContent (données mockées pour la démo)
+  if (newsItem.fullContent) {
+    return newsItem.fullContent;
+  }
+  
+  // Priorité 4: excerpt ou description comme fallback
+  return newsItem.excerpt || newsItem.description || 'Contenu non disponible';
+};
+
+// Fonction pour obtenir l'image avec fallback
+const getNewsImage = (newsItem) => {
+  return newsItem?.urlToImage || newsItem?.imageUrl || null;
+};
+
+// Fonction pour obtenir le lien de l'article
+const getNewsLink = (newsItem) => {
+  return newsItem?.url || newsItem?.link || null;
+};
+
+// Fonction pour formater la date
+const formatDate = (dateString) => {
+  if (!dateString) return 'Date inconnue';
+  
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    return dateString;
+  }
+};
+
+// Fonction pour obtenir les informations d'auteur
+const getAuthorInfo = (newsItem) => {
+  return newsItem?.author || 'Auteur non spécifié';
+};
+
 
 const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
   // State management for various UI elements and data
@@ -27,8 +85,15 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
 
   const [availableCountries, setAvailableCountries] = useState([]);
   const [availableThemes, setAvailableThemes] = useState([]);
-  const [availableNews, setAvailableNews]       = useState([]);
-  const [isLoadingNews, setIsLoadingNews]       = useState(false);
+  const [availableNews, setAvailableNews] = useState([]);
+  const [isLoadingNews, setIsLoadingNews] = useState(false);
+
+  // --- NOUVEAU STATE POUR LA MODALE D'ACTUALITÉ ---
+  const [showNewsDetailModal, setShowNewsDetailModal] = useState(false);
+  const [selectedNewsDetail, setSelectedNewsDetail] = useState(null);
+  const [isLoadingNewsDetail, setIsLoadingNewsDetail] = useState(false); // Added for news detail modal loading
+  // ------------------------------------------------
+
   // Effect to reset default body/html styles on mount for consistent background
   useEffect(() => {
     document.body.style.margin = '0';
@@ -37,83 +102,69 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
     document.documentElement.style.padding = '0';
   }, []);
 
-useEffect(() => {
-  getNewsCountries()
-    .then(response => {
-      if (response.success) {
-        setAvailableCountries(response.data);
-      } else {
-        console.error('newsCountries error', response);
+  useEffect(() => {
+    getNewsCountries()
+      .then(response => {
+        if (response.success) {
+          setAvailableCountries(response.data);
+        } else {
+          console.error('newsCountries error', response);
+          setAvailableCountries(staticCountries);
+        }
+      })
+      .catch(err => {
+        console.error('newsCountries failed, fallback', err);
         setAvailableCountries(staticCountries);
-      }
+      });
+
+    getNewsThemes()
+      .then(response => {
+        if (response.success) {
+          setAvailableThemes(response.data);
+        } else {
+          console.error('newsThemes error', response);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (!campaignId) return;
+    setIsLoadingNews(true);
+
+    fetchCampaignNews(campaignId, {
+      country: selectedCountry,
+      theme: selectedTheme,
+      credibility: 0,
+      limit: 20
     })
-    .catch(err => {
-      console.error('newsCountries failed, fallback', err);
-      setAvailableCountries(staticCountries);
-    });
+      .then(response => {
+        if (response.success) {
+          setAvailableNews(response.data.news);
+        } else {
+          console.error('fetchCampaignNews error', response);
+        }
+      })
+      .catch(err => console.error('fetchCampaignNews error', err))
+      .finally(() => setIsLoadingNews(false));
+  }, [campaignId, selectedCountry, selectedTheme]);
 
-  getNewsThemes()
-    .then(response => {
-      if (response.success) {
-        setAvailableThemes(response.data);
-      } else {
-        console.error('newsThemes error', response);
-      }
-    })
-    .catch(console.error);
-}, []);
+  useEffect(() => {
+    if (!campaignId) return;
+    getCampaignStep2Data(campaignId)
+      .then(response => {
+        if (response.success) {
+          const { filters, news } = response.data;
+          setSelectedCountry(filters.country);
+          setSelectedTheme(filters.theme);
+          setSelectedNews(news.map(n => n.id));
+          setAvailableNews(news);
+        }
+      })
+      .catch(console.error);
+  }, [campaignId]);
 
-
-useEffect(() => {
-  if (!campaignId) return;
-  setIsLoadingNews(true);
-
-  fetchCampaignNews(campaignId, {
-    country: selectedCountry,
-    theme:   selectedTheme,
-    credibility: 0,
-    limit: 20
-  })
-    .then(response => {
-      if (response.success) {
-        setAvailableNews(response.data.news);
-      } else {
-        console.error('fetchCampaignNews error', response);
-      }
-    })
-    .catch(err => console.error('fetchCampaignNews error', err))
-    .finally(() => setIsLoadingNews(false));
-}, [campaignId, selectedCountry, selectedTheme]);
-
-
-useEffect(() => {
-  if (!campaignId) return;
-  getCampaignStep2Data(campaignId)
-    .then(response => {
-      if (response.success) {
-        const { filters, news } = response.data;
-        setSelectedCountry(filters.country);
-        setSelectedTheme(filters.theme);
-        setSelectedNews(news.map(n => n.id));
-        setAvailableNews(news);
-      }
-    })
-    .catch(console.error);
-}, [campaignId]);
-
-
-
-
-
-  // Static data for countries, themes, and mock news/templates
-  /*const countries = [
-    { code: 'tn', name: 'Tunisie', flag: '🇹🇳' },
-    { code: 'fr', name: 'France', flag: '🇫🇷' },
-    { code: 'us', name: 'États-Unis', flag: '🇺🇸' },
-    { code: 'de', name: 'Allemagne', flag: '🇩🇪' },
-    { code: 'gb', name: 'Royaume-Uni', flag: '🇬🇧' }
-  ];*/
-
+  // Static data for themes and mock news/templates (removed countries as they are fetched)
   const themes = [
     { id: 'cybersecurity', name: 'Cybersécurité', icon: '🔒' },
     { id: 'finance', name: 'Finance', icon: '💰' },
@@ -129,7 +180,14 @@ useEffect(() => {
       excerpt: "Les experts en cybersécurité alertent sur une recrudescence des attaques...",
       source: "CyberNews",
       date: "2025-06-01",
-      credibility: 9
+      credibility: 9,
+      // NOUVELLES PROPRIÉTÉS POUR LE DÉTAIL
+      fullContent: "Une cyberattaque sophistiquée a ciblé plusieurs grandes institutions financières, compromettant des données clients et des systèmes internes. Les attaquants, soupçonnés d'être un groupe parrainé par un État, ont utilisé des techniques avancées de spear-phishing pour infiltrer les réseaux. Les banques touchées travaillent en étroite collaboration avec les agences gouvernementales pour évaluer l'étendue des dommages et renforcer leurs défenses. Cet incident souligne la nécessité pour les entreprises de tous les secteurs de renforcer leur posture de sécurité et de former leurs employés aux menaces émergentes. Des millions de dossiers clients pourraient avoir été exposés.",
+      imageUrl: "https://images.unsplash.com/photo-1593642532781-0c46647970c6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w0NTg5MzJ8MHwxfHNlYXJjaHwxfHxjeWJlcmF0dGFja3xlbnwwfHx8fDE3MTc4MDIwNzV8MA&ixlib=rb-4.0.3&q=80&w=1080",
+      link: "https://www.example.com/cyberattack",
+      publishedAt: "2025-06-01T10:00:00Z", // Added for improved modal
+      author: "Jane Doe", // Added for improved modal
+      description: "Des millions de dossiers clients pourraient avoir été exposés suite à cette attaque sophistiquée."
     },
     {
       id: 2,
@@ -137,7 +195,14 @@ useEffect(() => {
       excerpt: "Des vulnérabilités importantes ont été découvertes dans plusieurs produits...",
       source: "TechCrunch",
       date: "2025-06-01",
-      credibility: 8
+      credibility: 8,
+      // NOUVELLES PROPRIÉTÉS POUR LE DÉTAIL
+      fullContent: "Microsoft a publié un bulletin de sécurité urgent concernant de multiples vulnérabilités affectant Windows, Office et Azure. Ces failles pourraient permettre à des attaquants d'exécuter du code à distance ou d'escalader des privilèges. Il est impératif que les utilisateurs appliquent ces mises à jour dès que possible pour se protéger contre d'éventuelles exploitations. L'entreprise recommande également l'activation de l'authentification multifacteur et la mise en œuvre de principes de moindre privilège pour minimiser les risques.",
+      imageUrl: "https://images.unsplash.com/photo-1629851608933-255d14332997?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w0NTg5MzJ8MHwxfHNlYXJjaHwxfHxtaWNyb3NvZnQlMjBzZWN1cml0eXxlbnwwfHx8fDE3MTc4MDIxNDV8MA&ixlib=rb-4.0.3&q=80&w=1080",
+      link: "https://www.example.com/microsoft-update",
+      publishedAt: "2025-06-01T09:30:00Z", // Added for improved modal
+      author: "John Smith", // Added for improved modal
+      description: "Des mises à jour de sécurité urgentes sont disponibles pour Windows, Office et Azure."
     },
     {
       id: 3,
@@ -145,7 +210,14 @@ useEffect(() => {
       excerpt: "De nouvelles directives européennes renforcent la protection des données...",
       source: "Les Échos",
       date: "2025-05-31",
-      credibility: 9
+      credibility: 9,
+      // NOUVELLES PROPRIÉTÉS POUR LE DÉTAIL
+      fullContent: "Le Parlement européen a approuvé de nouvelles clauses contractuelles types pour le transfert de données personnelles en dehors de l'UE, impactant directement les entreprises françaises. Ces nouvelles règles visent à renforcer la protection des données des citoyens européens face aux transferts internationaux. Les entreprises doivent désormais réévaluer leurs pratiques de transfert et s'assurer de leur conformité pour éviter de lourdes amendes. Des guides pratiques et des webinaires sont mis à disposition pour accompagner les organisations dans cette transition.",
+      imageUrl: "https://images.unsplash.com/photo-1510511459019-5da7094ed2b1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w0NTg5MzJ8MHwxfHNlYXJjaHwxfHxHREBSc3xlbnwwfHx8fDE3MTc4MDIyMTd8MA&ixlib=rb-4.0.3&q=80&w=1080",
+      link: "https://www.example.com/gdpr-france",
+      publishedAt: "2025-05-31T15:00:00Z", // Added for improved modal
+      author: "Marie Dubois", // Added for improved modal
+      description: "Les nouvelles règles de transfert de données hors UE impactent les entreprises françaises."
     }
   ];
 
@@ -236,26 +308,26 @@ useEffect(() => {
    * @param {number} newsId - The ID of the news item to toggle.
    */
   const toggleNewsSelection = async (newsId) => {
-  // Calcul de la nouvelle liste de sélection
-  const newList = selectedNews.includes(newsId)
-    ? selectedNews.filter(id => id !== newsId)
-    : [...selectedNews, newsId];
+    // Calcul de la nouvelle liste de sélection
+    const newList = selectedNews.includes(newsId)
+      ? selectedNews.filter(id => id !== newsId)
+      : [...selectedNews, newsId];
 
-  // Mise à jour du state local
-  setSelectedNews(newList);
+    // Mise à jour du state local
+    setSelectedNews(newList);
 
-  // Préparation des objets à envoyer au backend
-  const newsObjects = newList.map(id =>
-    availableNews.find(n => n.id === id)
-  );
+    // Préparation des objets à envoyer au backend
+    const newsObjects = newList.map(id =>
+      availableNews.find(n => n.id === id)
+    );
 
-  // Envoi de la sélection au serveur
-  try {
-    await saveSelectedNews(campaignId, newsObjects);
-  } catch (err) {
-    console.error('Erreur lors de saveSelectedNews :', err);
-  }
-};
+    // Envoi de la sélection au serveur
+    try {
+      await saveSelectedNews(campaignId, newsObjects);
+    } catch (err) {
+      console.error('Erreur lors de saveSelectedNews :', err);
+    }
+  };
 
 
   /**
@@ -285,7 +357,9 @@ useEffect(() => {
     // Simulate API call with a delay
     setTimeout(() => {
       const newTemplates = selectedNews.map(newsId => {
-        const news = mockNews.find(n => n.id === newsId);
+        // Find the full news object, either from availableNews or mockNews
+        const news = availableNews.find(n => n.id === newsId) || mockNews.find(n => n.id === newsId);
+
         // Check if a generated template for this newsId already exists
         const existingTemplate = emailTemplates.find(t => t.newsId === newsId && t.generated);
 
@@ -468,6 +542,19 @@ useEffect(() => {
     event.target.value = '';
   };
 
+  // --- NOUVELLE FONCTION POUR OUVRIR LA MODALE DE DÉTAIL D'ACTUALITÉ ---
+  const showNewsDetail = (newsItem) => {
+    setSelectedNewsDetail(newsItem);
+    setShowNewsDetailModal(true);
+    // In a real app, you might fetch full details here if not already available
+    // setIsLoadingNewsDetail(true);
+    // fetchNewsFullContent(newsItem.id).then(data => {
+    //   setSelectedNewsDetail(prev => ({ ...prev, fullContent: data.fullContent }));
+    //   setIsLoadingNewsDetail(false);
+    // });
+  };
+  // ---------------------------------------------------------------------
+
   // Filter templates for display in respective sections
   const generatedTemplates = emailTemplates.filter(t => t.generated);
   const importedTemplatesForDisplay = emailTemplates.filter(t => t.imported);
@@ -635,52 +722,79 @@ useEffect(() => {
                   </div>
                 </div>
 
-               {/* News Grid */}
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-  {isLoadingNews ? (
-    <div className="col-span-full text-center text-white text-lg">
-      Chargement des actualités…
-    </div>
-  ) : (
-    availableNews.map(news => (
-      <div
-        key={news.id}
-        onClick={() => toggleNewsSelection(news.id)}
-        className={`p-6 rounded-xl border cursor-pointer transition-all duration-300 ${
-          selectedNews.includes(news.id)
-            ? 'border-cyan-400 bg-cyan-500/10'
-            : 'border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
-        }`}
-      >
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex-1">
-            <h5 className="text-white font-medium text-lg mb-2">{news.title}</h5>
-            <p className="text-gray-300 text-base">{news.excerpt}</p>
-          </div>
-          <div className="ml-4 flex items-center space-x-2 flex-shrink-0">
-            <span
-              className={`w-3 h-3 rounded-full ${
-                news.credibility >= 8
-                  ? 'bg-green-400'
-                  : news.credibility >= 5
-                  ? 'bg-yellow-400'
-                  : 'bg-red-400'
-              }`}
-            ></span>
-            <span className="text-sm text-gray-400">{news.credibility}/10</span>
-          </div>
-        </div>
-        <div className="flex justify-between items-center text-sm text-gray-400 mt-4">
-          <span>{news.source}</span>
-          <span>
-            <Calendar className="inline-block w-4 h-4 mr-1" /> {news.date}
-          </span>
-        </div>
-      </div>
-    ))
-  )}
-</div>
-
+                {/* News Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {isLoadingNews ? (
+                    <div className="col-span-full text-center text-white text-lg">
+                      Chargement des actualités…
+                    </div>
+                  ) : (
+                    availableNews.map(news => (
+                      <div
+                        key={news.id}
+                        // Enveloppez le contenu du clic pour ne pas déclencher le toggle ET le détail
+                        // en utilisant un wrapper pour le clic de sélection et un bouton pour le détail.
+                        className={`p-6 rounded-xl border transition-all duration-300 ${
+                          selectedNews.includes(news.id)
+                            ? 'border-cyan-400 bg-cyan-500/10'
+                            : 'border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h5 className="text-white font-medium text-lg mb-2">{news.title}</h5>
+                            <p className="text-gray-300 text-base">{news.excerpt}</p>
+                          </div>
+                          <div className="ml-4 flex items-center space-x-2 flex-shrink-0">
+                            <span
+                              className={`w-3 h-3 rounded-full ${
+                                news.credibility >= 8
+                                  ? 'bg-green-400'
+                                  : news.credibility >= 5
+                                    ? 'bg-yellow-400'
+                                    : 'bg-red-400'
+                              }`}
+                            ></span>
+                            <span className="text-sm text-gray-400">{news.credibility}/10</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-gray-400 mt-4">
+                          <span>{news.source}</span>
+                          <span className="flex items-center space-x-2">
+                            <Calendar className="inline-block w-4 h-4 mr-1" /> {news.date}
+                            {/* Bouton "Voir Détails" pour ouvrir la modale */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation(); // Empêche la propagation du clic pour ne pas cocher/décocher l'actualité
+                                showNewsDetail(news);
+                              }}
+                              className="ml-3 p-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all duration-200 hover:scale-110"
+                              title="Voir les détails"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {/* Case à cocher pour la sélection, placée à droite pour une meilleure UX */}
+                            <div
+                              className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center cursor-pointer ${
+                                selectedNews.includes(news.id)
+                                  ? 'bg-cyan-400 border-cyan-400'
+                                  : 'border-white/30'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation(); // Empêche la propagation du clic sur la carte principale
+                                toggleNewsSelection(news.id);
+                              }}
+                            >
+                              {selectedNews.includes(news.id) && (
+                                <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                              )}
+                            </div>
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
 
@@ -749,8 +863,8 @@ useEffect(() => {
                                   <span className="text-base text-gray-400">De: {template.fromName}</span>
                                   <span className={`px-3 py-1 rounded-full text-sm ${
                                     template.category === 'Urgent' ? 'bg-red-500/20 text-red-300' :
-                                    template.category === 'Technique' ? 'bg-blue-500/20 text-blue-300' :
-                                    'bg-gray-500/20 text-gray-300'
+                                      template.category === 'Technique' ? 'bg-blue-500/20 text-blue-300' :
+                                        'bg-gray-500/20 text-gray-300'
                                   }`}>
                                     {template.category}
                                   </span>
@@ -1002,6 +1116,213 @@ useEffect(() => {
           </div>
         </div>
       )}
+
+      {/* --- NOUVELLE MODALE POUR LE DÉTAIL D'ACTUALITÉ --- */}
+      {showNewsDetailModal && selectedNewsDetail && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full h-5/6 flex flex-col overflow-hidden">
+            {/* Header de la modal */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <TrendingUp className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800">Détail de l'Actualité</h3>
+              </div>
+              <button 
+                onClick={() => setShowNewsDetailModal(false)} 
+                className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition-all duration-200"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Contenu de la modal */}
+            <div className="flex-1 overflow-auto">
+              {isLoadingNewsDetail ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Chargement des détails...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 space-y-6">
+                  {/* Image principale */}
+                  {getNewsImage(selectedNewsDetail) && (
+                    <div className="relative">
+                      <img 
+                        src={getNewsImage(selectedNewsDetail)} 
+                        alt={selectedNewsDetail.title} 
+                        className="w-full h-64 object-cover rounded-lg shadow-md"
+                        onError={(e) => {
+                          e.target.style.display = 'none'; // Hide broken image
+                        }}
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 rounded-b-lg">
+                        <div className="text-white text-sm">
+                          Source: {selectedNewsDetail.source || selectedNewsDetail.source?.name || 'Source inconnue'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Titre principal */}
+                  <div>
+                    <h1 className="text-3xl font-bold text-gray-900 leading-tight mb-4">
+                      {selectedNewsDetail.title}
+                    </h1>
+                  </div>
+
+                  {/* Métadonnées */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="w-4 h-4 text-gray-500" />
+                        <span className="text-gray-600">
+                          <strong>Date:</strong> {formatDate(selectedNewsDetail.publishedAt || selectedNewsDetail.date)}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Globe className="w-4 h-4 text-gray-500" />
+                        <span className="text-gray-600">
+                          <strong>Source:</strong> {selectedNewsDetail.source?.name || selectedNewsDetail.source || 'Source inconnue'}
+                        </span>
+                      </div>
+
+                      {selectedNewsDetail.author && (
+                        <div className="flex items-center space-x-2">
+                          <User className="w-4 h-4 text-gray-500" />
+                          <span className="text-gray-600">
+                            <strong>Auteur:</strong> {getAuthorInfo(selectedNewsDetail)}
+                          </span>
+                        </div>
+                      )}
+
+                      {selectedNewsDetail.credibility && (
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-3 h-3 rounded-full ${
+                            selectedNewsDetail.credibility >= 8 ? 'bg-green-500' :
+                            selectedNewsDetail.credibility >= 5 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}></div>
+                          <span className="text-gray-600">
+                            <strong>Crédibilité:</strong> {selectedNewsDetail.credibility}/10
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description/Excerpt si différent du contenu principal */}
+                  {selectedNewsDetail.description && formatNewsContent(selectedNewsDetail) !== selectedNewsDetail.description && (
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+                      <h3 className="font-semibold text-gray-800 mb-2">Résumé</h3>
+                      <p className="text-gray-700 leading-relaxed italic">
+                        {selectedNewsDetail.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Contenu principal */}
+                  <div className="prose max-w-none">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-4">Contenu de l'article</h3>
+                    <div className="text-gray-700 leading-relaxed whitespace-pre-wrap bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                      {formatNewsContent(selectedNewsDetail)}
+                    </div>
+                  </div>
+
+                  {/* Tags/Catégories si disponibles */}
+                  {selectedNewsDetail.category && (
+                    <div>
+                      <h4 className="font-semibold text-gray-800 mb-2">Catégorie</h4>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
+                          {selectedNewsDetail.category}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Informations techniques pour NewsAPI */}
+                  {(selectedNewsDetail.urlToImage || selectedNewsDetail.publishedAt || selectedNewsDetail.source?.id) && (
+                    <details className="bg-gray-50 p-4 rounded-lg">
+                      <summary className="cursor-pointer font-medium text-gray-700 hover:text-gray-900">
+                        Informations techniques
+                      </summary>
+                      <div className="mt-3 space-y-2 text-sm text-gray-600">
+                        {selectedNewsDetail.publishedAt && (
+                          <div><strong>Date de publication:</strong> {selectedNewsDetail.publishedAt}</div>
+                        )}
+                        {selectedNewsDetail.urlToImage && (
+                          <div><strong>URL de l'image:</strong> 
+                            <a href={selectedNewsDetail.urlToImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline ml-1">
+                              Voir l'image
+                            </a>
+                          </div>
+                        )}
+                        {selectedNewsDetail.source?.id && (
+                          <div><strong>ID Source:</strong> {selectedNewsDetail.source.id}</div>
+                        )}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer de la modal */}
+            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+              <div className="flex items-center space-x-4">
+                {/* Bouton pour sélectionner/désélectionner l'actualité */}
+                <button
+                  onClick={() => toggleNewsSelection(selectedNewsDetail.id)}
+                  className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                    selectedNews.includes(selectedNewsDetail.id)
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    selectedNews.includes(selectedNewsDetail.id)
+                      ? 'bg-green-500 border-green-500'
+                      : 'border-gray-400'
+                  }`}>
+                    {selectedNews.includes(selectedNewsDetail.id) && (
+                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                    )}
+                  </div>
+                  <span>{selectedNews.includes(selectedNewsDetail.id) ? 'Sélectionnée' : 'Sélectionner'}</span>
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-3">
+                {/* Lien vers l'article original */}
+                {getNewsLink(selectedNewsDetail) && (
+                  <a
+                    href={getNewsLink(selectedNewsDetail)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium"
+                  >
+                    <span>Lire l'article complet</span>
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+                
+                {/* Bouton fermer */}
+                <button
+                  onClick={() => setShowNewsDetailModal(false)}
+                  className="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition-all duration-200"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ------------------------------------------------------------------ */}
     </div>
   );
 };
