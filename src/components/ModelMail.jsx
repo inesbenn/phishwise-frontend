@@ -1,38 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { countries as staticCountries } from '../utils/countries';
+import React, { useState, useEffect, useCallback } from 'react';
+// Assurez-vous que le chemin vers votre fichier utils/countries est correct
+import { countries as staticCountries } from '../utils/countries'; 
+
 import { Globe, FileText, Plus, X, ChevronLeft, ChevronRight, Calendar, TrendingUp, ExternalLink, Eye, Mail, Edit3, Upload, Sparkles, Copy, Download, User, Trash2 } from 'lucide-react';
+
+// Importez TOUTES les fonctions API nécessaires depuis votre fichier src/api/campaigns.js
 import {
   getNewsThemes,
   getNewsCountries,
   fetchCampaignNews,
   saveSelectedNews,
-  generateAISuggestions,
+  // generateAISuggestions, // Non utilisé directement dans ModelMail.jsx pour le moment, mais peut être utile
   getCampaignStep2Data,
-  updateCampaignStep2Data
-} from '../api/campaigns'; // Assuming these API functions exist
+  updateCampaignStep2Data, 
+  generateEmailTemplates as apiGenerateEmailTemplates, // Renommé pour éviter le conflit de nom
+  getEmailTemplates,
+  selectEmailTemplate, // Pour la sélection d'un template unique
+  // generateCustomTemplate, // Vous devrez implémenter un bouton/formulaire pour cette fonction
+  deleteEmailTemplate,
+  previewEmailTemplate,
+} from '../api/campaigns'; 
 
-// Helper functions for news detail modal (added by user)
+// --- Helper Functions for News Detail Modal (from your original code) ---
 // Fonction pour formater le contenu de l'actualité avec priorité aux données NewsAPI
 const formatNewsContent = (newsItem) => {
   if (!newsItem) return 'Contenu non disponible';
-  
-  // Priorité 1: content de NewsAPI (le plus complet)
-  if (newsItem.content && newsItem.content !== '[Removed]') {
+ if (newsItem.content && newsItem.content !== '[Removed]') {
     return newsItem.content;
   }
-  
-  // Priorité 2: description de NewsAPI (souvent plus détaillée)
-  if (newsItem.description && newsItem.description.length > (newsItem.excerpt?.length || 0)) {
+ if (newsItem.description && newsItem.description.length > (newsItem.excerpt?.length || 0)) {
     return newsItem.description;
   }
-  
-  // Priorité 3: fullContent (données mockées pour la démo)
-  if (newsItem.fullContent) {
+  // 'fullContent' est une propriété qui pourrait venir de données mockées ou enrichies localement si l'API ne fournit pas tout
+  if (newsItem.fullContent) { 
     return newsItem.fullContent;
   }
-  
-  // Priorité 4: excerpt ou description comme fallback
-  return newsItem.excerpt || newsItem.description || 'Contenu non disponible';
+ return newsItem.excerpt || newsItem.description || 'Contenu non disponible';
 };
 
 // Fonction pour obtenir l'image avec fallback
@@ -48,15 +51,10 @@ const getNewsLink = (newsItem) => {
 // Fonction pour formater la date
 const formatDate = (dateString) => {
   if (!dateString) return 'Date inconnue';
-  
-  try {
+ try {
     const date = new Date(dateString);
     return date.toLocaleDateString('fr-FR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
   } catch (error) {
     return dateString;
@@ -67,34 +65,48 @@ const formatDate = (dateString) => {
 const getAuthorInfo = (newsItem) => {
   return newsItem?.author || 'Auteur non spécifié';
 };
+// --- End Helper Functions ---
 
 
 const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
-  // State management for various UI elements and data
+  // Vérification si campaignId est fourni
+  if (!campaignId) {
+    console.error("ModelMail: campaignId n'est pas fourni. Le composant ne fonctionnera pas correctement.");
+    // Vous pouvez ajouter une gestion d'erreur plus visible ici (ex: retourner null ou un message)
+    // return <div>Erreur: ID de campagne manquant.</div>;
+  }
+
+  // --- State Management ---
   const [selectedCountry, setSelectedCountry] = useState(savedData.selectedCountry || 'fr');
   const [selectedTheme, setSelectedTheme] = useState(savedData.selectedTheme || 'cybersecurity');
-  const [selectedNews, setSelectedNews] = useState(savedData.selectedNews || []);
-  const [emailTemplates, setEmailTemplates] = useState(savedData.emailTemplates || []); // Consolidated state for all email templates
-  const [selectedTemplates, setSelectedTemplates] = useState(savedData.selectedTemplates || []);
+  // selectedNews va stocker les objets actualités complets pour la persistance locale du frontend
+  // et pour l'envoi au backend lors de saveSelectedNews
+  const [selectedNews, setSelectedNews] = useState(savedData.selectedNews || []); 
+  
+  // emailTemplates contient TOUS les templates (générés et importés) récupérés du backend
+  const [emailTemplates, setEmailTemplates] = useState(savedData.emailTemplates || []); 
+  // selectedTemplates contient les IDs des templates ACTUELLEMENT sélectionnés pour la campagne
+  const [selectedTemplates, setSelectedTemplates] = useState(savedData.selectedTemplates || []); 
+
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [previewEmail, setPreviewEmail] = useState(null);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false); // Pour la génération IA des templates
   const [activeTab, setActiveTab] = useState(savedData.activeTab || 'news'); // Sauvegarder l'onglet actif
 
   const [availableCountries, setAvailableCountries] = useState([]);
   const [availableThemes, setAvailableThemes] = useState([]);
-  const [availableNews, setAvailableNews] = useState([]);
+  const [availableNews, setAvailableNews] = useState([]); // Actualités disponibles de l'API News
   const [isLoadingNews, setIsLoadingNews] = useState(false);
-
-  // --- NOUVEAU STATE POUR LA MODALE D'ACTUALITÉ ---
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false); // Nouveau loading state pour les templates
   const [showNewsDetailModal, setShowNewsDetailModal] = useState(false);
   const [selectedNewsDetail, setSelectedNewsDetail] = useState(null);
-  const [isLoadingNewsDetail, setIsLoadingNewsDetail] = useState(false); // Added for news detail modal loading
-  // ------------------------------------------------
+  const [isLoadingNewsDetail, setIsLoadingNewsDetail] = useState(false); // Pour le cas où on fetch le détail
 
-  // Effect to reset default body/html styles on mount for consistent background
+  // --- Effects ---
+
+  // Effet pour réinitialiser les styles par défaut du corps/html
   useEffect(() => {
     document.body.style.margin = '0';
     document.body.style.padding = '0';
@@ -102,249 +114,191 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
     document.documentElement.style.padding = '0';
   }, []);
 
+  // Chargement initial des données de référence (pays, thèmes) depuis le backend
   useEffect(() => {
+    // Récupération des pays
     getNewsCountries()
       .then(response => {
         if (response.success) {
           setAvailableCountries(response.data);
         } else {
-          console.error('newsCountries error', response);
-          setAvailableCountries(staticCountries);
+          console.error('API Error: getNewsCountries', response);
+          setAvailableCountries(staticCountries); // Fallback vers les pays statiques si l'API échoue
         }
       })
       .catch(err => {
-        console.error('newsCountries failed, fallback', err);
-        setAvailableCountries(staticCountries);
+        console.error('Fetch Error: getNewsCountries', err);
+        setAvailableCountries(staticCountries); // Fallback sur erreur réseau ou autre
       });
 
+    // Récupération des thèmes
     getNewsThemes()
       .then(response => {
         if (response.success) {
           setAvailableThemes(response.data);
         } else {
-          console.error('newsThemes error', response);
+          console.error('API Error: getNewsThemes', response);
+          // Pas de fallback statique ici, si les thèmes sont censés être dynamiques
         }
       })
       .catch(console.error);
   }, []);
 
+  // Chargement des actualités disponibles basées sur les filtres et la campagne ID
   useEffect(() => {
-    if (!campaignId) return;
-    setIsLoadingNews(true);
+    // S'assure que campaignId et les filtres sont définis avant de faire l'appel API
+    if (!campaignId || !selectedCountry || !selectedTheme) return;
 
-    fetchCampaignNews(campaignId, {
-      country: selectedCountry,
-      theme: selectedTheme,
-      credibility: 0,
-      limit: 20
-    })
-      .then(response => {
-        if (response.success) {
+    const fetchNews = async () => {
+      setIsLoadingNews(true);
+      try {
+        const response = await fetchCampaignNews(campaignId, {
+          country: selectedCountry,
+          theme: selectedTheme,
+          credibility: 0, // Valeur par défaut pour la crédibilité, à ajuster si configurable
+          limit: 20 // Limite le nombre de résultats pour ne pas surcharger
+        });
+        if (response.success && response.data?.news) {
           setAvailableNews(response.data.news);
+          // Note: selectedNews est mis à jour par getCampaignStep2Data lors du chargement initial
+          // ou par toggleNewsSelection après une action utilisateur.
         } else {
-          console.error('fetchCampaignNews error', response);
+          console.error('Failed to fetch campaign news:', response.message || response);
+          setAvailableNews([]); // Vide la liste si la récupération échoue
         }
-      })
-      .catch(err => console.error('fetchCampaignNews error', err))
-      .finally(() => setIsLoadingNews(false));
+      } catch (err) {
+        console.error('Error fetching campaign news:', err);
+        setAvailableNews([]);
+      } finally {
+        setIsLoadingNews(false);
+      }
+    };
+    fetchNews();
   }, [campaignId, selectedCountry, selectedTheme]);
 
+  // Chargement des données sauvegardées des étapes 2 et 3 de la campagne
+  // S'exécute une seule fois au chargement du composant si campaignId est présent
   useEffect(() => {
     if (!campaignId) return;
-    getCampaignStep2Data(campaignId)
-      .then(response => {
-        if (response.success) {
-          const { filters, news } = response.data;
-          setSelectedCountry(filters.country);
-          setSelectedTheme(filters.theme);
-          setSelectedNews(news.map(n => n.id));
-          setAvailableNews(news);
+
+    const loadCampaignSavedData = async () => {
+      // Charger les données de l'étape 2 (filtres, actualités sélectionnées)
+      try {
+        const responseStep2 = await getCampaignStep2Data(campaignId);
+        if (responseStep2.success && responseStep2.data) {
+          if (responseStep2.data.filters) {
+            setSelectedCountry(responseStep2.data.filters.country || 'fr');
+            setSelectedTheme(response2.data.filters.theme || 'cybersecurity');
+          }
+          // Stocke les actualités complètes sauvegardées dans le state `selectedNews`
+          setSelectedNews(responseStep2.data.news || []);
+        } else {
+          console.warn("Failed to load Step 2 data for campaign:", campaignId, responseStep2.message || responseStep2);
         }
-      })
-      .catch(console.error);
-  }, [campaignId]);
+      } catch (err) {
+        console.error("Error fetching Step 2 data:", err);
+      }
 
-  // Static data for themes and mock news/templates (removed countries as they are fetched)
-  const themes = [
-    { id: 'cybersecurity', name: 'Cybersécurité', icon: '🔒' },
-    { id: 'finance', name: 'Finance', icon: '💰' },
-    { id: 'tech', name: 'Technologie', icon: '💻' },
-    { id: 'health', name: 'Santé', icon: '🏥' },
-    { id: 'politics', name: 'Politique', icon: '🏛️' }
-  ];
+      // Charger les données de l'étape 3 (templates d'emails)
+      try {
+        setIsLoadingTemplates(true);
+        const responseStep3 = await getEmailTemplates(campaignId);
+        if (responseStep3.success && responseStep3.data?.templates) {
+          // --- DÉBUT DE LA MODIFICATION IMPORTANTE POUR LA ROBUSTESSE ---
+          // S'assurer que les flags 'generated' et 'imported' sont des booléens
+          const processedTemplates = (responseStep3.data.templates || []).map(template => {
+            const isImported = typeof template.imported === 'boolean' ? template.imported : false;
+            // Un template est généré si 'generated' est explicitement true, OU s'il n'est pas importé.
+            const isGenerated = typeof template.generated === 'boolean' ? template.generated : !isImported;
+            
+            // LOG DÉTAILLÉ DE CHAQUE TEMPLATE PENDANT LE TRAITEMENT
+            console.log(`DEBUG: Processing template ${template.id || template.subject}: raw.generated=${template.generated}, raw.imported=${template.imported}, processed.generated=${isGenerated}, processed.imported=${isImported}`);
 
-  const mockNews = [
-    {
-      id: 1,
-      title: "Nouvelle cyberattaque majeure contre les institutions financières",
-      excerpt: "Les experts en cybersécurité alertent sur une recrudescence des attaques...",
-      source: "CyberNews",
-      date: "2025-06-01",
-      credibility: 9,
-      // NOUVELLES PROPRIÉTÉS POUR LE DÉTAIL
-      fullContent: "Une cyberattaque sophistiquée a ciblé plusieurs grandes institutions financières, compromettant des données clients et des systèmes internes. Les attaquants, soupçonnés d'être un groupe parrainé par un État, ont utilisé des techniques avancées de spear-phishing pour infiltrer les réseaux. Les banques touchées travaillent en étroite collaboration avec les agences gouvernementales pour évaluer l'étendue des dommages et renforcer leurs défenses. Cet incident souligne la nécessité pour les entreprises de tous les secteurs de renforcer leur posture de sécurité et de former leurs employés aux menaces émergentes. Des millions de dossiers clients pourraient avoir été exposés.",
-      imageUrl: "https://images.unsplash.com/photo-1593642532781-0c46647970c6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w0NTg5MzJ8MHwxfHNlYXJjaHwxfHxjeWJlcmF0dGFja3xlbnwwfHx8fDE3MTc4MDIwNzV8MA&ixlib=rb-4.0.3&q=80&w=1080",
-      link: "https://www.example.com/cyberattack",
-      publishedAt: "2025-06-01T10:00:00Z", // Added for improved modal
-      author: "Jane Doe", // Added for improved modal
-      description: "Des millions de dossiers clients pourraient avoir été exposés suite à cette attaque sophistiquée."
-    },
-    {
-      id: 2,
-      title: "Microsoft annonce des mises à jour de sécurité critiques",
-      excerpt: "Des vulnérabilités importantes ont été découvertes dans plusieurs produits...",
-      source: "TechCrunch",
-      date: "2025-06-01",
-      credibility: 8,
-      // NOUVELLES PROPRIÉTÉS POUR LE DÉTAIL
-      fullContent: "Microsoft a publié un bulletin de sécurité urgent concernant de multiples vulnérabilités affectant Windows, Office et Azure. Ces failles pourraient permettre à des attaquants d'exécuter du code à distance ou d'escalader des privilèges. Il est impératif que les utilisateurs appliquent ces mises à jour dès que possible pour se protéger contre d'éventuelles exploitations. L'entreprise recommande également l'activation de l'authentification multifacteur et la mise en œuvre de principes de moindre privilège pour minimiser les risques.",
-      imageUrl: "https://images.unsplash.com/photo-1629851608933-255d14332997?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w0NTg5MzJ8MHwxfHNlYXJjaHwxfHxtaWNyb3NvZnQlMjBzZWN1cml0eXxlbnwwfHx8fDE3MTc4MDIxNDV8MA&ixlib=rb-4.0.3&q=80&w=1080",
-      link: "https://www.example.com/microsoft-update",
-      publishedAt: "2025-06-01T09:30:00Z", // Added for improved modal
-      author: "John Smith", // Added for improved modal
-      description: "Des mises à jour de sécurité urgentes sont disponibles pour Windows, Office et Azure."
-    },
-    {
-      id: 3,
-      title: "Les entreprises françaises face aux nouvelles réglementations GDPR",
-      excerpt: "De nouvelles directives européennes renforcent la protection des données...",
-      source: "Les Échos",
-      date: "2025-05-31",
-      credibility: 9,
-      // NOUVELLES PROPRIÉTÉS POUR LE DÉTAIL
-      fullContent: "Le Parlement européen a approuvé de nouvelles clauses contractuelles types pour le transfert de données personnelles en dehors de l'UE, impactant directement les entreprises françaises. Ces nouvelles règles visent à renforcer la protection des données des citoyens européens face aux transferts internationaux. Les entreprises doivent désormais réévaluer leurs pratiques de transfert et s'assurer de leur conformité pour éviter de lourdes amendes. Des guides pratiques et des webinaires sont mis à disposition pour accompagner les organisations dans cette transition.",
-      imageUrl: "https://images.unsplash.com/photo-1510511459019-5da7094ed2b1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w0NTg5MzJ8MHwxfHNlYXJjaHwxfHxHREBSc3xlbnwwfHx8fDE3MTc4MDIyMTd8MA&ixlib=rb-4.0.3&q=80&w=1080",
-      link: "https://www.example.com/gdpr-france",
-      publishedAt: "2025-05-31T15:00:00Z", // Added for improved modal
-      author: "Marie Dubois", // Added for improved modal
-      description: "Les nouvelles règles de transfert de données hors UE impactent les entreprises françaises."
-    }
-  ];
+            return {
+              ...template,
+              generated: isGenerated, 
+              imported: isImported 
+            };
+          });
+          setEmailTemplates(processedTemplates);
+          // --- FIN DE LA MODIFICATION IMPORTANTE ---
 
-  const mockGeneratedEmailTemplates = [
-    {
-      id: 1,
-      newsId: 1,
-      subject: "🚨 Alerte sécurité bancaire : Vérification de compte requise",
-      from: "securite@ma-banque.com",
-      fromName: "Service Sécurité Bancaire",
-      category: "Urgent",
-      credibilityLevel: "Élevé",
-      body: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #d32f2f; color: white; padding: 15px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">🚨 ALERTE SÉCURITÉ</h2>
-          </div>
-          <div style="background: #f5f5f5; padding: 20px; border-radius: 0 0 8px 8px;">
-            <p>Cher client,</p>
-            <p>Suite aux récentes cyberattaques contre les institutions financières, nous devons vérifier immédiatement votre compte pour garantir sa sécurité.</p>
-            <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 15px 0; border-radius: 4px;">
-              <strong>⚠️ Action requise dans les 24h</strong><br>
-              Votre compte sera temporairement suspendu si vous ne confirmez pas vos informations.
-            </div>
-            <div style="text-align: center; margin: 20px 0;">
-              <a href="#" style="background: #d32f2f; color: white; padding: 12px 30px; text-decoration: none; border-radius: 4px; display: inline-block;">
-                VÉRIFIER MON COMPTE
-              </a>
-            </div>
-            <p style="font-size: 12px; color: #666;">
-              Service Sécurité - Ma Banque<br>
-              En cas de doute, contactez le 01.23.45.67.89
-            </p>
-          </div>
-        </div>
-      `,
-      generated: true,
-      imported: false,
-      lastModified: new Date().toISOString()
-    },
-    {
-      id: 2,
-      newsId: 2,
-      subject: "Microsoft Security Alert : Mise à jour critique disponible",
-      from: "security@microsoft.com",
-      fromName: "Microsoft Security Team",
-      category: "Technique",
-      credibilityLevel: "Très élevé",
-      body: `
-        <div style="font-family: Segoe UI, Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #0078d4; color: white; padding: 20px;">
-            <h1 style="margin: 0; font-size: 24px;">Microsoft Security Alert</h1>
-          </div>
-          <div style="background: white; padding: 20px; border: 1px solid #e5e5e5;">
-            <p>Bonjour,</p>
-            <p>Notre équipe de sécurité a identifié des vulnérabilités critiques dans plusieurs produits Microsoft. Une mise à jour immédiate est nécessaire.</p>
-            <div style="background: #fff4ce; padding: 15px; margin: 15px 0; border-left: 4px solid #ffb900;">
-              <strong>Action immédiate requise :</strong><br>
-              Installez la mise à jour de sécurité avant le 10 juin 2025
-            </div>
-            <div style="text-align: center; margin: 20px 0;">
-              <a href="#" style="background: #0078d4; color: white; padding: 15px 30px; text-decoration: none; border-radius: 4px; display: inline-block;">
-                INSTALLER LA MISE À JOUR
-              </a>
-            </div>
-            <p style="font-size: 12px; color: #666;">
-              Microsoft Security Team<br>
-              support@microsoft.com
-            </p>
-          </div>
-        </div>
-      `,
-      generated: true,
-      imported: false,
-      lastModified: new Date().toISOString()
-    }
-  ];
+          // Si le backend stocke UN SEUL template sélectionné (selectedTemplate), on peut l'initialiser ici
+          // Si le frontend gère la multi-sélection, cette logique doit être adaptée
+          if (responseStep3.data.selectedTemplate) {
+            setSelectedTemplates([responseStep3.data.selectedTemplate]);
+          } else {
+            setSelectedTemplates([]); // Aucune sélection initiale
+          }
+           console.log("Templates chargés depuis le backend:", processedTemplates); // LOG IMPORTANT
+        } else {
+          console.warn("Failed to load Step 3 data (templates) for campaign:", campaignId, responseStep3.message || responseStep3);
+          setEmailTemplates([]); // S'assure que la liste est vide si la récupération échoue
+        }
+      } catch (err) {
+        console.error("Error fetching Step 3 data (templates):", err);
+        setEmailTemplates([]);
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+    };
+    loadCampaignSavedData();
+  }, [campaignId]); // Déclenche ce useEffect uniquement quand campaignId change
 
-  // Initialize emailTemplates with mock generated templates on component mount ONLY if no saved data
-  useEffect(() => {
-    if (!savedData.emailTemplates || savedData.emailTemplates.length === 0) {
-      setEmailTemplates(mockGeneratedEmailTemplates);
-    }
-  }, []);
+
+  // --- Handlers ---
 
   /**
    * Toggles the selection of a news item.
-   * @param {number} newsId - The ID of the news item to toggle.
+   * Updates local state and persists to backend via `saveSelectedNews`.
+   * @param {object} newsItem - The full news item object to toggle.
    */
-  const toggleNewsSelection = async (newsId) => {
-    // Calcul de la nouvelle liste de sélection
-    const newList = selectedNews.includes(newsId)
-      ? selectedNews.filter(id => id !== newsId)
-      : [...selectedNews, newsId];
-
-    // Mise à jour du state local
+  const toggleNewsSelection = async (newsItem) => {
+    // Vérifie si l'actualité est déjà sélectionnée en comparant l'ID
+    const isSelected = selectedNews.some(n => n.id === newsItem.id);
+    let newList;
+    if (isSelected) {
+      newList = selectedNews.filter(n => n.id !== newsItem.id);
+    } else {
+      newList = [...selectedNews, newsItem];
+    }
     setSelectedNews(newList);
 
-    // Préparation des objets à envoyer au backend
-    const newsObjects = newList.map(id =>
-      availableNews.find(n => n.id === id)
-    );
-
-    // Envoi de la sélection au serveur
-    try {
-      await saveSelectedNews(campaignId, newsObjects);
+   try {
+      // Envoie la liste COMPLETE des actualités sélectionnées au backend
+      // Le backend gérera la sauvegarde ou la mise à jour
+      await saveSelectedNews(campaignId, newList);
+      console.log('Actualités sélectionnées sauvegardées dans le backend.');
     } catch (err) {
-      console.error('Erreur lors de saveSelectedNews :', err);
+      console.error('Erreur lors de la sauvegarde des actualités sélectionnées vers le backend:', err);
+      // Optionnel: Revenir à l'état précédent si la sauvegarde échoue
+      // setSelectedNews(prevSelectedNews);
+      alert('Erreur lors de la sauvegarde de la sélection d\'actualités.');
     }
   };
 
-
-  /**
+ /**
    * Toggles the selection of an email template.
-   * @param {number} templateId - The ID of the template to toggle.
+   * Manages local state for multi-selection.
+   * IMPORTANT: The backend API `selectEmailTemplate` handles SINGLE selection.
+   * If your frontend needs to send MULTIPLE selected template IDs to the backend,
+   * you'll need to adapt the backend schema and API endpoint (e.g., PUT /campaigns/:campaignId/selected-templates).
+   * For now, this function only manages the frontend state.
+   * @param {string} templateId - The ID of the template to toggle.
    */
-  const toggleTemplateSelection = (templateId) => {
+  const toggleTemplateSelection = useCallback((templateId) => {
     setSelectedTemplates(prev =>
       prev.includes(templateId)
         ? prev.filter(id => id !== templateId)
         : [...prev, templateId]
     );
-  };
+    // Pas d'appel API direct ici pour la multi-sélection.
+    // La sélection finale sera envoyée via `handleNext`.
+  }, []);
 
   /**
-   * Simulates the generation of email templates based on selected news.
-   * This function includes a delay to mimic an API call.
+   * Generates email templates based on selected news via backend API.
+   * Calls the `apiGenerateEmailTemplates` function.
    */
   const generateEmailTemplates = async () => {
     if (selectedNews.length === 0) {
@@ -353,130 +307,207 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
     }
 
     setIsGenerating(true);
+    try {
+      // Appelle la fonction API du frontend qui contacte votre backend GroqService
+      const response = await apiGenerateEmailTemplates(campaignId, true, {}); 
+      if (response.success && response.data?.templates) {
+        // Le backend renvoie la liste complète des templates (générés + existants si fusionnés)
+        // --- DÉBUT DE LA MODIFICATION IMPORTANTE POUR LA ROBUSTESSE ---
+        // S'assurer que les flags 'generated' et 'imported' sont des booléens lors de la mise à jour
+        const processedTemplates = (response.data.templates || []).map(template => {
+            const isImported = typeof template.imported === 'boolean' ? template.imported : false;
+            const isGenerated = typeof template.generated === 'boolean' ? template.generated : !isImported;
+            
+            // LOG DÉTAILLÉ DE CHAQUE TEMPLATE PENDANT LE TRAITEMENT
+            console.log(`DEBUG: Generating template ${template.id || template.subject}: raw.generated=${template.generated}, raw.imported=${template.imported}, processed.generated=${isGenerated}, processed.imported=${isImported}`);
 
-    // Simulate API call with a delay
-    setTimeout(() => {
-      const newTemplates = selectedNews.map(newsId => {
-        // Find the full news object, either from availableNews or mockNews
-        const news = availableNews.find(n => n.id === newsId) || mockNews.find(n => n.id === newsId);
-
-        // Check if a generated template for this newsId already exists
-        const existingTemplate = emailTemplates.find(t => t.newsId === newsId && t.generated);
-
-        if (existingTemplate) {
-          // If it exists, return the existing one to prevent duplicates for the same news
-          return existingTemplate;
-        }
-
-        // Generate a new template based on the news
-        return {
-          id: Date.now() + Math.random(), // Unique ID
-          newsId: newsId,
-          subject: `Urgent: ${news.title.substring(0, 50)}...`,
-          from: "info@service-securite.com", // Default 'from' for generated
-          fromName: "Service Sécurité", // Default 'fromName' for generated
-          category: "Généré",
-          credibilityLevel: "Moyen",
-          body: `<p>Template généré automatiquement basé sur: <strong>${news.title}</strong></p><p>${news.excerpt}</p><p>Pour plus d'informations, visitez <a href="#">notre site</a>.</p>`,
-          generated: true,
-          imported: false,
-          lastModified: new Date().toISOString()
-        };
-      });
-
-      setEmailTemplates(prev => {
-        // Filter out old generated templates that correspond to selected news,
-        // then add the newly generated ones. This handles regeneration gracefully.
-        const filteredPrev = prev.filter(t => !selectedNews.includes(t.newsId) || !t.generated);
-        return [...filteredPrev, ...newTemplates];
-      });
-
+            return {
+              ...template,
+              generated: isGenerated, 
+              imported: isImported 
+            };
+        });
+        setEmailTemplates(processedTemplates); 
+        // --- FIN DE LA MODIFICATION IMPORTANTE ---
+        setActiveTab('templates'); // Passe à l'onglet des templates après génération
+        console.log('Modèles d\'emails générés via le backend et état mis à jour.');
+      } else {
+        alert('Échec de la génération des modèles d\'emails. ' + (response.message || ''));
+        console.error('API Error: apiGenerateEmailTemplates', response);
+      }
+    } catch (err) {
+      console.error('Erreur de récupération: apiGenerateEmailTemplates', err);
+      alert('Une erreur est survenue lors de la génération des modèles. Vérifiez la console.');
+    } finally {
       setIsGenerating(false);
-      setActiveTab('templates'); // Switch to templates tab after generation
-    }, 2000);
+    }
   };
 
   /**
-   * Sets the email to be previewed and shows the preview modal.
+   * Sets the email to be previewed and shows the preview modal, fetching preview from backend.
+   * The backend will generate the HTML with personalized data.
    * @param {object} template - The template object to preview.
    */
-  const previewTemplate = (template) => {
-    setPreviewEmail(template);
-    setShowEmailPreview(true);
+  const previewTemplate = async (template) => {
+    try {
+      // Appelle l'API de prévisualisation avec des données de test
+      const response = await previewEmailTemplate(campaignId, template.id, {
+        firstName: 'Utilisateur',
+        lastName: 'Test',
+        position: 'Développeur',
+        email: 'test@example.com'
+      });
+      if (response.success && response.data?.template?.preview_html) {
+        // Met à jour le state `previewEmail` avec le HTML prévisualisé
+        setPreviewEmail({ ...template, body: response.data.template.preview_html });
+        setShowEmailPreview(true);
+      } else {
+        alert('Échec de la prévisualisation du modèle. ' + (response.message || ''));
+        console.error('API Error: previewEmailTemplate', response);
+      }
+    } catch (err) {
+      console.error('Erreur de récupération: previewEmailTemplate', err);
+      alert('Une erreur est survenue lors de la prévisualisation.');
+    }
   };
 
   /**
    * Sets the template to be edited and shows the editor modal.
+   * Note: This currently only prepares the local state for editing.
+   * Saving the changes (via `saveTemplate`) would require a backend endpoint
+   * to update a specific template if persistence is desired.
    * @param {object} template - The template object to edit.
    */
   const editTemplate = (template) => {
-    setEditingTemplate({ ...template }); // Create a shallow copy to avoid direct state mutation
+    setEditingTemplate({ ...template }); // Crée une copie superficielle pour éviter la mutation directe
     setShowTemplateEditor(true);
   };
 
   /**
-   * Saves the currently editing template back into the emailTemplates state.
+   * Saves the currently editing template back into the emailTemplates state (locally).
+   * TODO: Implement backend API call to persist changes to an individual template.
    */
-  const saveTemplate = () => {
+  const saveTemplate = async () => {
     if (!editingTemplate) return;
 
+    // Mise à jour de l'état local du frontend
     setEmailTemplates(prev =>
-      prev.map(t => t.id === editingTemplate.id ? { ...editingTemplate, lastModified: new Date().toISOString() } : t)
+      prev.map(t => t.id === editingTemplate.id ? { 
+        ...editingTemplate, 
+        lastModified: new Date().toISOString(),
+        // Assurez-vous que les champs sont conformes à votre schéma Mongoose (content_html au lieu de body)
+        content_html: editingTemplate.content_html || editingTemplate.body,
+        content_text: editingTemplate.content_text || formatNewsContent(editingTemplate.content_html || editingTemplate.body), // Générer le texte brut si non fourni
+        type: editingTemplate.type || editingTemplate.category || 'generic', // Assurez la cohérence du champ type
+      } : t)
     );
+
+    // IMPORTANT: Pour persister cette modification, vous avez besoin d'un endpoint PUT/PATCH dans le backend
+    // qui met à jour un template spécifique. Actuellement, votre backend n'a pas cet endpoint générique.
+    // Il faudrait ajouter un `static async updateEmailTemplate(req, res)` dans ModelMailController.js
+    // puis appeler `await updateEmailTemplate(campaignId, editingTemplate.id, editingTemplate);` ici.
+    console.warn('Template saved locally. Consider adding a backend API call to persist changes.');
 
     setShowTemplateEditor(false);
     setEditingTemplate(null);
   };
 
   /**
-   * Duplicates an existing email template.
+   * Duplicates an existing email template. This is currently a client-side operation.
+   * TODO: If persistence of duplicated templates is needed, a backend API call is required.
    * @param {object} template - The template object to duplicate.
    */
-  const duplicateTemplate = (template) => {
+  const duplicateTemplate = useCallback((template) => {
     const duplicated = {
       ...template,
-      id: Date.now() + Math.random(), // New unique ID
+      id: `copy_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, // Nouvel ID unique
+      name: `${template.name || template.subject} (Copie)`, // Renomme la copie
       subject: `${template.subject} (Copie)`,
-      lastModified: new Date().toISOString()
+      generated: false, // Une copie n'est plus "générée" automatiquement par l'IA
+      imported: template.imported, // Conserve le statut "importé" si c'était le cas
+      created_at: new Date().toISOString(), // Utilise created_at pour la date de création de la copie
+      lastModified: new Date().toISOString() // Met à jour la date de dernière modification
     };
     setEmailTemplates(prev => [...prev, duplicated]);
-  };
+    console.warn('Template duplicated locally. Consider adding a backend API call to persist duplications.');
+    // TODO: Si vous voulez persister les duplications, vous devrez appeler un endpoint API ici.
+    // Ex: await createTemplate(campaignId, duplicated);
+  }, []);
 
   /**
-   * Removes a template from the list.
-   * Note: In a real application, consider a confirmation modal before deleting.
-   * @param {number} idToRemove - The ID of the template to remove.
+   * Removes a template from the list. Calls backend API for deletion.
+   * @param {string} idToRemove - The ID of the template to remove.
    */
-  const removeTemplate = (idToRemove) => {
-    // Filter out the template from selectedTemplates if it was selected
-    setSelectedTemplates(prevSelected => prevSelected.filter(id => id !== idToRemove));
-    // Filter out the template from emailTemplates
-    setEmailTemplates(prev => prev.filter(template => template.id !== idToRemove));
+  const removeTemplate = async (idToRemove) => {
+    try {
+      // Appelle l'API backend pour supprimer le template
+      await deleteEmailTemplate(campaignId, idToRemove);
+      
+      // Filtre le template des IDs sélectionnés si nécessaire
+      setSelectedTemplates(prevSelected => prevSelected.filter(id => id !== idToRemove));
+      // Met à jour l'état local après suppression réussie du backend
+      setEmailTemplates(prev => prev.filter(template => template.id !== idToRemove));
+      console.log('Modèle supprimé du backend et de l\'état local.');
+    } catch (err) {
+      console.error('Erreur lors de la suppression du modèle depuis le backend:', err);
+      alert('Une erreur est survenue lors de la suppression du modèle.');
+    }
   };
 
   /**
    * Handles the progression to the next step in the wizard.
+   * Saves ALL relevant step data to the backend before navigating.
    */
-  const handleNext = () => {
+  const handleNext = async () => {
     if (selectedTemplates.length === 0) {
       alert('Veuillez sélectionner au moins un modèle d\'email pour continuer.');
       return;
     }
 
-    // Sauvegarder TOUTES les données de l'étape
-    const wizardData = {
-      selectedCountry,
-      selectedTheme,
-      selectedNews,
-      emailTemplates, // Sauvegarder TOUS les modèles (générés ET importés)
-      selectedTemplates,
-      activeTab // Sauvegarder l'onglet actif
-    };
+    try {
+      // 1. Sauvegarder les filtres et actualités sélectionnées de l'étape 2
+      // `updateCampaignStep2Data` est appelé ici pour s'assurer que les dernières sélections
+      // et filtres sont enregistrés, même s'ils ont déjà été envoyés par `toggleNewsSelection`.
+      await updateCampaignStep2Data(campaignId, {
+        filters: {
+          country: selectedCountry,
+          theme: selectedTheme,
+          credibility: 0 // Assurez-vous que cette valeur est cohérente
+        },
+        news: selectedNews, // Envoie la liste complète des actualités sélectionnées
+        // suggestions: suggestions // Si vous les gérez et voulez les persister
+      });
 
-    console.log('Données Actualités & Modèles sauvegardées:', wizardData);
+      // 2. Sauvegarder la sélection des templates de l'étape 3
+      // Votre backend `selectEmailTemplate` gère une sélection UNIQUE.
+      // Si `selectedTemplates` est un TABLEAU (pour la multi-sélection frontend),
+      // vous devrez adapter cette logique ou votre backend pour qu'il accepte un tableau d'IDs.
+      // Pour l'instant, on n'envoie que le premier template sélectionné, ou aucun.
+      const firstSelectedTemplateId = selectedTemplates.length > 0 ? selectedTemplates[0] : null;
+      if (firstSelectedTemplateId) {
+        await selectEmailTemplate(campaignId, firstSelectedTemplateId);
+        console.log(`Template ${firstSelectedTemplateId} sélectionné dans le backend.`);
+      } else {
+        // Logique pour désélectionner si aucun template n'est sélectionné,
+        // si votre backend supporte la désélection explicite.
+      }
+      
+      console.log('Données Actualités & Modèles sauvegardées dans le backend avant de passer à l\'étape suivante.');
 
-    if (onNext) {
-      onNext(null, wizardData); // Passer les données à sauvegarder
+      if (onNext) {
+        // Passe les données actuelles au composant parent si nécessaire
+        onNext(null, { 
+          selectedCountry, 
+          selectedTheme, 
+          selectedNews, 
+          emailTemplates, 
+          selectedTemplates, 
+          activeTab 
+        }); 
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde finale des données de campagne pour la navigation:', error);
+      alert('Une erreur est survenue lors de la sauvegarde de l\'étape actuelle.');
     }
   };
 
@@ -491,10 +522,11 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
 
   /**
    * Handles the import of an email template from a file.
-   * Supports HTML, TXT, and JSON files.
+   * This is currently a client-side operation.
+   * TODO: Implement backend API call to persist imported templates.
    * @param {Event} event - The file input change event.
    */
-  const handleFileImport = (event) => {
+  const handleFileImport = useCallback((event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
@@ -505,59 +537,67 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
         let importedCategory = 'Importé';
         let importedFromName = 'Modèle Importé';
 
-        // Attempt to parse JSON if the file type suggests it
-        if (file.type === 'application/json' || file.name.endsWith('.json')) {
+       if (file.type === 'application/json' || file.name.endsWith('.json')) {
           try {
-            const jsonData = JSON.parse(fileContent);
-            // Allow overriding default values if present in JSON
+          const jsonData = JSON.parse(fileContent);
             importedSubject = jsonData.subject || importedSubject;
             importedBody = jsonData.body || importedBody;
             importedFromName = jsonData.fromName || importedFromName;
             importedCategory = jsonData.category || importedCategory;
           } catch (error) {
-            console.error("Error parsing JSON file:", error);
+            console.error("Erreur lors de l'analyse du fichier JSON:", error);
             alert("Erreur lors de la lecture du fichier JSON. Assurez-vous qu'il est bien formaté.");
             return;
           }
         }
 
         const newTemplate = {
-          id: Date.now() + Math.random(),
-          name: file.name, // Use file name as template name
+          id: `imported_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, // ID unique
+          name: file.name, // Utilise le nom du fichier comme nom de template
           subject: importedSubject,
-          from: `imported_${Date.now()}@template.com`, // Unique 'from' address
+          from: `imported_${Date.now()}@template.com`, // Adresse 'from' unique pour l'importation
           fromName: importedFromName,
-          category: importedCategory,
-          body: importedBody,
-          generated: false,
-          imported: true,
-          lastModified: new Date().toISOString()
+          category: importedCategory, // Ancien champ category, map to type if needed
+          type: importedCategory, // Utilise le même champ pour type
+          body: importedBody, // Ancien champ body, map to content_html if needed
+          content_html: importedBody, // Correspond au champ content_html du backend
+          content_text: formatNewsContent(importedBody), // Génère le texte brut
+          generated: false, // N'est pas généré par l'IA
+          imported: true, // Est un template importé
+          created_at: new Date().toISOString(), // Date de création
+          lastModified: new Date().toISOString() // Date de dernière modification
         };
         setEmailTemplates(prev => [...prev, newTemplate]);
-        setActiveTab('templates'); // Switch to templates tab after import
+        setActiveTab('templates'); // Passe à l'onglet des templates après importation
+        console.warn('Modèle importé localement. Pensez à ajouter un appel API pour persister les templates importés.');
       };
       reader.readAsText(file);
     }
-    // Clear the file input value to allow selecting the same file again
-    event.target.value = '';
-  };
+    // Réinitialise la valeur de l'input de fichier pour permettre la sélection du même fichier à nouveau
+    event.target.value = ''; 
+  }, []);
 
   // --- NOUVELLE FONCTION POUR OUVRIR LA MODALE DE DÉTAIL D'ACTUALITÉ ---
-  const showNewsDetail = (newsItem) => {
+  const showNewsDetail = useCallback((newsItem) => {
     setSelectedNewsDetail(newsItem);
     setShowNewsDetailModal(true);
-    // In a real app, you might fetch full details here if not already available
-    // setIsLoadingNewsDetail(true);
-    // fetchNewsFullContent(newsItem.id).then(data => {
-    //   setSelectedNewsDetail(prev => ({ ...prev, fullContent: data.fullContent }));
-    //   setIsLoadingNewsDetail(false);
-    // });
-  };
-  // ---------------------------------------------------------------------
+    // Ici, vous n'avez normalement pas besoin de re-fetch les détails
+    // car les objets news déjà dans `availableNews` ou `selectedNews`
+    // devraient contenir toutes les infos nécessaires.
+  }, []);
 
-  // Filter templates for display in respective sections
-  const generatedTemplates = emailTemplates.filter(t => t.generated);
+  // Filtrer les templates pour l'affichage (générés vs importés)
+  // Ces variables sont recalculées à chaque rendu si emailTemplates change
+  // MODIFICATION ICI: Considérez un template comme généré s'il n'est pas explicitement importé.
+  const generatedTemplates = emailTemplates.filter(t => !t.imported); 
   const importedTemplatesForDisplay = emailTemplates.filter(t => t.imported);
+
+  // --- LOGS DE DIAGNOSTIC IMPORTANTS ---
+  console.log("DEBUG: emailTemplates (état brut):", emailTemplates);
+  console.log("DEBUG: generatedTemplates (filtrés):", generatedTemplates);
+  console.log("DEBUG: importedTemplatesForDisplay (filtrés):", importedTemplatesForDisplay);
+  console.log("DEBUG: selectedTemplates (IDs sélectionnées):", selectedTemplates);
+
 
   return (
     <div
@@ -673,6 +713,7 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       onChange={(e) => setSelectedCountry(e.target.value)}
                       className="w-full px-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200"
                     >
+                      {/* Affichage des pays disponibles, avec fallback */}
                       {Array.isArray(availableCountries) && availableCountries.map(country => (
                         <option key={country.code} value={country.code} className="bg-slate-800">
                           {country.flag} {country.name}
@@ -689,7 +730,8 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       onChange={(e) => setSelectedTheme(e.target.value)}
                       className="w-full px-4 py-4 text-lg bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all duration-200"
                     >
-                      {availableThemes.map(theme => (
+                      {/* Affichage des thèmes disponibles */}
+                      {Array.isArray(availableThemes) && availableThemes.map(theme => (
                         <option key={theme.id} value={theme.id} className="bg-slate-800">
                           {theme.icon} {theme.name}
                         </option>
@@ -699,7 +741,7 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
 
                   <div className="col-span-1 md:col-span-2 flex items-end">
                     <button
-                      onClick={generateEmailTemplates}
+                      onClick={generateEmailTemplates} // Appelle la fonction mise à jour (API backend)
                       disabled={selectedNews.length === 0 || isGenerating}
                       className={`w-full px-8 py-4 rounded-xl transition-all duration-300 flex items-center justify-center space-x-4 ${
                         selectedNews.length === 0 || isGenerating
@@ -729,70 +771,73 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       Chargement des actualités…
                     </div>
                   ) : (
-                    availableNews.map(news => (
-                      <div
-                        key={news.id}
-                        // Enveloppez le contenu du clic pour ne pas déclencher le toggle ET le détail
-                        // en utilisant un wrapper pour le clic de sélection et un bouton pour le détail.
-                        className={`p-6 rounded-xl border transition-all duration-300 ${
-                          selectedNews.includes(news.id)
-                            ? 'border-cyan-400 bg-cyan-500/10'
-                            : 'border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex-1">
-                            <h5 className="text-white font-medium text-lg mb-2">{news.title}</h5>
-                            <p className="text-gray-300 text-base">{news.excerpt}</p>
-                          </div>
-                          <div className="ml-4 flex items-center space-x-2 flex-shrink-0">
-                            <span
-                              className={`w-3 h-3 rounded-full ${
-                                news.credibility >= 8
-                                  ? 'bg-green-400'
-                                  : news.credibility >= 5
-                                    ? 'bg-yellow-400'
-                                    : 'bg-red-400'
-                              }`}
-                            ></span>
-                            <span className="text-sm text-gray-400">{news.credibility}/10</span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-gray-400 mt-4">
-                          <span>{news.source}</span>
-                          <span className="flex items-center space-x-2">
-                            <Calendar className="inline-block w-4 h-4 mr-1" /> {news.date}
-                            {/* Bouton "Voir Détails" pour ouvrir la modale */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation(); // Empêche la propagation du clic pour ne pas cocher/décocher l'actualité
-                                showNewsDetail(news);
-                              }}
-                              className="ml-3 p-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all duration-200 hover:scale-110"
-                              title="Voir les détails"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            {/* Case à cocher pour la sélection, placée à droite pour une meilleure UX */}
-                            <div
-                              className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center cursor-pointer ${
-                                selectedNews.includes(news.id)
-                                  ? 'bg-cyan-400 border-cyan-400'
-                                  : 'border-white/30'
-                              }`}
-                              onClick={(e) => {
-                                e.stopPropagation(); // Empêche la propagation du clic sur la carte principale
-                                toggleNewsSelection(news.id);
-                              }}
-                            >
-                              {selectedNews.includes(news.id) && (
-                                <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
-                              )}
-                            </div>
-                          </span>
-                        </div>
+                    availableNews.length === 0 ? (
+                      <div className="col-span-full text-center text-gray-400 text-lg">
+                        Aucune actualité trouvée pour les filtres sélectionnés.
                       </div>
-                    ))
+                    ) : (
+                      availableNews.map(news => (
+                        <div
+                          key={news.id || news.url} // Utilise news.id si disponible, sinon news.url comme clé unique
+                          className={`p-6 rounded-xl border transition-all duration-300 ${
+                            selectedNews.some(n => n.id === news.id) // Vérifie si l'actualité est sélectionnée par son ID
+                              ? 'border-cyan-400 bg-cyan-500/10'
+                              : 'border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <h5 className="text-white font-medium text-lg mb-2">{news.title}</h5>
+                              <p className="text-gray-300 text-base">{news.excerpt || news.description}</p>
+                            </div>
+                            <div className="ml-4 flex items-center space-x-2 flex-shrink-0">
+                              <span
+                                className={`w-3 h-3 rounded-full ${
+                                  news.credibility >= 8
+                                    ? 'bg-green-400'
+                                    : news.credibility >= 5
+                                      ? 'bg-yellow-400'
+                                      : 'bg-red-400'
+                                }`}
+                              ></span>
+                              <span className="text-sm text-gray-400">{news.credibility}/10</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center text-sm text-gray-400 mt-4">
+                            <span>{news.source?.name || news.source || 'Source inconnue'}</span>
+                            <span className="flex items-center space-x-2">
+                              <Calendar className="inline-block w-4 h-4 mr-1" /> {formatDate(news.publishedAt || news.date)}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Empêche la propagation du clic sur la carte
+                                  showNewsDetail(news);
+                                }}
+                                className="ml-3 p-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-all duration-200 hover:scale-110"
+                                title="Voir les détails"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              {/* Case à cocher pour la sélection */}
+                              <div
+                                className={`w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center cursor-pointer ${
+                                  selectedNews.some(n => n.id === news.id)
+                                    ? 'bg-cyan-400 border-cyan-400'
+                                    : 'border-white/30'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Empêche la propagation du clic sur la carte
+                                  toggleNewsSelection(news); // Passe l'objet actualité complet
+                                }}
+                              >
+                                {selectedNews.some(n => n.id === news.id) && (
+                                  <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+                                )}
+                              </div>
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )
                   )}
                 </div>
               </div>
@@ -827,174 +872,187 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                   </div>
                 </div>
 
-                {/* Generated Templates */}
-                {generatedTemplates.length > 0 && (
-                  <div>
-                    <h5 className="text-white font-medium mb-4 text-xl">Modèles Générés</h5>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {generatedTemplates.map(template => (
-                        <div
-                          key={template.id}
-                          className={`p-6 rounded-xl border transition-all duration-300 ${
-                            selectedTemplates.includes(template.id)
-                              ? 'border-green-400 bg-green-500/10'
-                              : 'border-white/10 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-4">
-                            <div
-                              onClick={() => toggleTemplateSelection(template.id)}
-                              className="flex items-start space-x-3 flex-1 cursor-pointer"
-                            >
-                              <div className={`w-5 h-5 rounded-full border-2 transition-all mt-1 flex-shrink-0 ${
-                                selectedTemplates.includes(template.id)
-                                  ? 'bg-green-400 border-green-400'
-                                  : 'border-white/30'
-                              }`}>
-                                {selectedTemplates.includes(template.id) && (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                {isLoadingTemplates ? (
+                  <div className="text-center text-white text-lg">Chargement des modèles...</div>
+                ) : emailTemplates.length === 0 ? (
+                    <div className="text-center text-gray-400 text-lg">
+                      Aucun modèle d'email disponible. Veuillez générer des modèles depuis l'onglet "Actualités" ou importer un fichier.
+                    </div>
+                  ) : (
+                    <>
+                      {/* Generated Templates */}
+                      {generatedTemplates.length > 0 && (
+                        <div>
+                          <h5 className="text-white font-medium mb-4 text-xl">Modèles Générés</h5>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {generatedTemplates.map(template => (
+                              <div
+                                key={template.id}
+                                className={`p-6 rounded-xl border transition-all duration-300 ${
+                                  selectedTemplates.includes(template.id)
+                                    ? 'border-green-400 bg-green-500/10'
+                                    : 'border-white/10 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between mb-4">
+                                  <div
+                                    onClick={() => toggleTemplateSelection(template.id)}
+                                    className="flex items-start space-x-3 flex-1 cursor-pointer"
+                                  >
+                                    <div className={`w-5 h-5 rounded-full border-2 transition-all mt-1 flex-shrink-0 ${
+                                      selectedTemplates.includes(template.id)
+                                        ? 'bg-green-400 border-green-400'
+                                        : 'border-white/30'
+                                    }`}>
+                                      {selectedTemplates.includes(template.id) && (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1">
+                                      <h6 className="text-white font-medium text-lg">{template.subject}</h6>
+                                      <div className="flex flex-wrap items-center space-x-3 mt-2">
+                                        <span className="text-base text-gray-400">De: {template.fromName || 'N/A'}</span>
+                                        <span className={`px-3 py-1 rounded-full text-sm ${
+                                          template.type === 'security_alert' ? 'bg-red-500/20 text-red-300' :
+                                          template.type === 'system_notification' ? 'bg-blue-500/20 text-blue-300' :
+                                          template.type === 'urgent_update' ? 'bg-yellow-500/20 text-yellow-300' :
+                                          template.type === 'verification' ? 'bg-purple-500/20 text-purple-300' :
+                                          'bg-gray-500/20 text-gray-300'
+                                        }`}>
+                                          {template.type}
+                                        </span>
+                                        {template.sophistication_level && (
+                                          <span className="text-sm text-gray-400">
+                                            Sophistication: {template.sophistication_level}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                              <div className="flex-1">
-                                <h6 className="text-white font-medium text-lg">{template.subject}</h6>
-                                <div className="flex flex-wrap items-center space-x-3 mt-2">
-                                  <span className="text-base text-gray-400">De: {template.fromName}</span>
-                                  <span className={`px-3 py-1 rounded-full text-sm ${
-                                    template.category === 'Urgent' ? 'bg-red-500/20 text-red-300' :
-                                      template.category === 'Technique' ? 'bg-blue-500/20 text-blue-300' :
-                                        'bg-gray-500/20 text-gray-300'
-                                  }`}>
-                                    {template.category}
-                                  </span>
-                                  {template.credibilityLevel && (
-                                    <span className="text-sm text-gray-400">
-                                      Crédibilité: {template.credibilityLevel}
-                                    </span>
-                                  )}
+                                  <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
+                                    <button
+                                      onClick={() => previewTemplate(template)}
+                                      className="p-3 text-cyan-400 rounded-lg transition-all duration-200 hover:bg-cyan-500/20 hover:scale-110"
+                                      title="Aperçu"
+                                    >
+                                      <Eye className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => editTemplate(template)}
+                                      className="p-3 text-yellow-400 rounded-lg transition-all duration-200 hover:bg-yellow-500/20 hover:scale-110"
+                                      title="Modifier"
+                                    >
+                                      <Edit3 className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => duplicateTemplate(template)}
+                                      className="p-3 text-green-400 rounded-lg transition-all duration-200 hover:bg-green-500/20 hover:scale-110"
+                                      title="Dupliquer"
+                                    >
+                                      <Copy className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => removeTemplate(template.id)}
+                                      className="p-3 text-red-400 rounded-lg transition-all duration-200 hover:bg-red-500/20 hover:scale-110"
+                                      title="Supprimer"
+                                    >
+                                      <Trash2 className="w-5 h-5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-400">
+                                  Modifié: {new Date(template.created_at || template.lastModified).toLocaleDateString('fr-FR')}
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
-                              <button
-                                onClick={() => previewTemplate(template)}
-                                className="p-3 text-cyan-400 rounded-lg transition-all duration-200 hover:bg-cyan-500/20 hover:scale-110"
-                                title="Aperçu"
-                              >
-                                <Eye className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => editTemplate(template)}
-                                className="p-3 text-yellow-400 rounded-lg transition-all duration-200 hover:bg-yellow-500/20 hover:scale-110"
-                                title="Modifier"
-                              >
-                                <Edit3 className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => duplicateTemplate(template)}
-                                className="p-3 text-green-400 rounded-lg transition-all duration-200 hover:bg-green-500/20 hover:scale-110"
-                                title="Dupliquer"
-                              >
-                                <Copy className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => removeTemplate(template.id)} // Delete button
-                                className="p-3 text-red-400 rounded-lg transition-all duration-200 hover:bg-red-500/20 hover:scale-110"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </div>
-                          <div className="text-sm text-gray-400">
-                            Modifié: {new Date(template.lastModified).toLocaleDateString()}
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
 
-                {/* Imported Templates */}
-                {importedTemplatesForDisplay.length > 0 && (
-                  <div className="pt-8 border-t border-white/10 mt-8">
-                    <h5 className="text-white font-medium mb-4 text-xl">Modèles Importés</h5>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {importedTemplatesForDisplay.map(template => (
-                        <div
-                          key={template.id}
-                          className={`p-6 rounded-xl border transition-all duration-300 ${
-                            selectedTemplates.includes(template.id)
-                              ? 'border-green-400 bg-green-500/10'
-                              : 'border-white/10 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-4">
-                            <div
-                              onClick={() => toggleTemplateSelection(template.id)}
-                              className="flex items-start space-x-3 flex-1 cursor-pointer"
-                            >
-                              <div className={`w-5 h-5 rounded-full border-2 transition-all mt-1 flex-shrink-0 ${
-                                selectedTemplates.includes(template.id)
-                                  ? 'bg-green-400 border-green-400'
-                                  : 'border-white/30'
-                              }`}>
-                                {selectedTemplates.includes(template.id) && (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                      {/* Imported Templates */}
+                      {importedTemplatesForDisplay.length > 0 && (
+                        <div className="pt-8 border-t border-white/10 mt-8">
+                          <h5 className="text-white font-medium mb-4 text-xl">Modèles Importés</h5>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {importedTemplatesForDisplay.map(template => (
+                              <div
+                                key={template.id}
+                                className={`p-6 rounded-xl border transition-all duration-300 ${
+                                  selectedTemplates.includes(template.id)
+                                    ? 'border-green-400 bg-green-500/10'
+                                    : 'border-white/10 bg-white/5 hover:bg-white/10 hover:scale-[1.02]'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between mb-4">
+                                  <div
+                                    onClick={() => toggleTemplateSelection(template.id)}
+                                    className="flex items-start space-x-3 flex-1 cursor-pointer"
+                                  >
+                                    <div className={`w-5 h-5 rounded-full border-2 transition-all mt-1 flex-shrink-0 ${
+                                      selectedTemplates.includes(template.id)
+                                        ? 'bg-green-400 border-green-400'
+                                        : 'border-white/30'
+                                    }`}>
+                                      {selectedTemplates.includes(template.id) && (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1">
+                                      {/* Utilise 'name' pour l'affichage si disponible, sinon 'subject' */}
+                                      <h6 className="text-white font-medium text-lg">{template.name || template.subject}</h6>
+                                      <div className="flex flex-wrap items-center space-x-3 mt-2">
+                                        <span className="text-base text-gray-400">De: {template.fromName || 'N/A'}</span>
+                                        <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm">
+                                          {template.category || template.type || 'Importé'}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                              <div className="flex-1">
-                                <h6 className="text-white font-medium text-lg">{template.name || template.subject}</h6>
-                                <div className="flex flex-wrap items-center space-x-3 mt-2">
-                                  <span className="text-base text-gray-400">De: {template.fromName}</span>
-                                  <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm">
-                                    {template.category}
-                                  </span>
+                                  <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
+                                    <button
+                                      onClick={() => previewTemplate(template)}
+                                      className="p-3 text-cyan-400 rounded-lg transition-all duration-200 hover:bg-cyan-500/20 hover:scale-110"
+                                      title="Aperçu"
+                                    >
+                                      <Eye className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => editTemplate(template)}
+                                      className="p-3 text-yellow-400 rounded-lg transition-all duration-200 hover:bg-yellow-500/20 hover:scale-110"
+                                      title="Modifier"
+                                    >
+                                      <Edit3 className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => duplicateTemplate(template)}
+                                      className="p-3 text-green-400 rounded-lg transition-all duration-200 hover:bg-green-500/20 hover:scale-110"
+                                      title="Dupliquer"
+                                    >
+                                      <Copy className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => removeTemplate(template.id)}
+                                      className="p-3 text-red-400 rounded-lg transition-all duration-200 hover:bg-red-500/20 hover:scale-110"
+                                      title="Supprimer"
+                                    >
+                                      <Trash2 className="w-5 h-5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="text-sm text-gray-400">
+                                  Modifié: {new Date(template.created_at || template.lastModified).toLocaleDateString('fr-FR')}
                                 </div>
                               </div>
-                            </div>
-                            <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
-                              <button
-                                onClick={() => previewTemplate(template)}
-                                className="p-3 text-cyan-400 rounded-lg transition-all duration-200 hover:bg-cyan-500/20 hover:scale-110"
-                                title="Aperçu"
-                              >
-                                <Eye className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => editTemplate(template)}
-                                className="p-3 text-yellow-400 rounded-lg transition-all duration-200 hover:bg-yellow-500/20 hover:scale-110"
-                                title="Modifier"
-                              >
-                                <Edit3 className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => duplicateTemplate(template)}
-                                className="p-3 text-green-400 rounded-lg transition-all duration-200 hover:bg-green-500/20 hover:scale-110"
-                                title="Dupliquer"
-                              >
-                                <Copy className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => removeTemplate(template.id)} // Delete button
-                                className="p-3 text-red-400 rounded-lg transition-all duration-200 hover:bg-red-500/20 hover:scale-110"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </div>
-                          <div className="text-sm text-gray-400">
-                            Modifié: {new Date(template.lastModified).toLocaleDateString()}
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
+                    </>
+                  )}
               </div>
             )}
           </div>
@@ -1038,7 +1096,7 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
               {previewEmail && (
                 <div
                   className="bg-white p-6 rounded-lg shadow-md"
-                  dangerouslySetInnerHTML={{ __html: previewEmail.body }}
+                  dangerouslySetInnerHTML={{ __html: previewEmail.body }} // Utilise previewEmail.body pour le HTML
                 />
               )}
             </div>
@@ -1071,29 +1129,65 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                 <input
                   id="edit-subject"
                   type="text"
+                  // Utilise editingTemplate.subject qui est le champ de la BDD
                   value={editingTemplate.subject}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
                   className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              {/* Category field */}
+              {/* Name field (ajouté pour les templates importés ou les copies) */}
+              {(editingTemplate.imported || !editingTemplate.generated) && (
+                <div>
+                  <label htmlFor="edit-name" className="block text-gray-700 text-sm font-bold mb-2">Nom du modèle (pour l'affichage):</label>
+                  <input
+                    id="edit-name"
+                    type="text"
+                    value={editingTemplate.name || ''}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
+              {/* Category/Type field */}
               <div>
-                <label htmlFor="edit-category" className="block text-gray-700 text-sm font-bold mb-2">Catégorie:</label>
+                <label htmlFor="edit-category" className="block text-gray-700 text-sm font-bold mb-2">Type de modèle:</label>
                 <input
                   id="edit-category"
                   type="text"
-                  value={editingTemplate.category}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, category: e.target.value })}
+                  // Assure la cohérence entre 'type' du backend et 'category' de l'ancien frontend si besoin
+                  value={editingTemplate.type || editingTemplate.category || ''}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, type: e.target.value, category: e.target.value })}
                   className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+              {/* Sophistication Level (pour les templates générés, ou si pertinent pour les autres) */}
+              {editingTemplate.generated && (
+                <div>
+                  <label htmlFor="edit-sophistication" className="block text-gray-700 text-sm font-bold mb-2">Niveau de Sophistication:</label>
+                  <select
+                    id="edit-sophistication"
+                    value={editingTemplate.sophistication_level || 'medium'}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, sophistication_level: e.target.value })}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+              )}
               {/* HTML Content field */}
               <div>
                 <label htmlFor="edit-body" className="block text-gray-700 text-sm font-bold mb-2">Contenu HTML:</label>
                 <textarea
                   id="edit-body"
-                  value={editingTemplate.body}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
+                  // Utilise content_html (du backend) ou body (de l'ancien state frontend si persisté)
+                  value={editingTemplate.content_html || editingTemplate.body || ''}
+                  onChange={(e) => setEditingTemplate({ 
+                    ...editingTemplate, 
+                    content_html: e.target.value, 
+                    body: e.target.value // Garde body pour la compatibilité si utilisé ailleurs
+                  })}
                   rows="15"
                   className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
                 ></textarea>
@@ -1117,7 +1211,7 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
         </div>
       )}
 
-      {/* --- NOUVELLE MODALE POUR LE DÉTAIL D'ACTUALITÉ --- */}
+      {/* News Detail Modal */}
       {showNewsDetailModal && selectedNewsDetail && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full h-5/6 flex flex-col overflow-hidden">
@@ -1156,12 +1250,12 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
                         alt={selectedNewsDetail.title} 
                         className="w-full h-64 object-cover rounded-lg shadow-md"
                         onError={(e) => {
-                          e.target.style.display = 'none'; // Hide broken image
+                          e.target.style.display = 'none'; // Masquer l'image si elle ne charge pas
                         }}
                       />
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 rounded-b-lg">
                         <div className="text-white text-sm">
-                          Source: {selectedNewsDetail.source || selectedNewsDetail.source?.name || 'Source inconnue'}
+                          Source: {selectedNewsDetail.source?.name || selectedNewsDetail.source || 'Source inconnue'}
                         </div>
                       </div>
                     </div>
@@ -1276,23 +1370,21 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
               <div className="flex items-center space-x-4">
                 {/* Bouton pour sélectionner/désélectionner l'actualité */}
                 <button
-                  onClick={() => toggleNewsSelection(selectedNewsDetail.id)}
+                  onClick={() => toggleNewsSelection(selectedNewsDetail)} // Passe l'objet actualité complet
                   className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
-                    selectedNews.includes(selectedNewsDetail.id)
+                    selectedNews.some(n => n.id === selectedNewsDetail.id) // Vérifie si l'actualité est sélectionnée par son ID
                       ? 'bg-green-100 text-green-700 border border-green-300'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    selectedNews.includes(selectedNewsDetail.id)
+                    selectedNews.some(n => n.id === selectedNewsDetail.id)
                       ? 'bg-green-500 border-green-500'
                       : 'border-gray-400'
                   }`}>
-                    {selectedNews.includes(selectedNewsDetail.id) && (
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
-                    )}
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
                   </div>
-                  <span>{selectedNews.includes(selectedNewsDetail.id) ? 'Sélectionnée' : 'Sélectionner'}</span>
+                  <span>{selectedNews.some(n => n.id === selectedNewsDetail.id) ? 'Sélectionnée' : 'Sélectionner'}</span>
                 </button>
               </div>
 
@@ -1322,8 +1414,7 @@ const ModelMail = ({ campaignId, onNext, onBack, savedData = {} }) => {
           </div>
         </div>
       )}
-      {/* ------------------------------------------------------------------ */}
-    </div>
+   </div>
   );
 };
 

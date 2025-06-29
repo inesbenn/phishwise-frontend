@@ -77,3 +77,65 @@ export function getCampaignStep2Data(campaignId) {
 export function updateCampaignStep2Data(campaignId, data) {
   return client.put(`/campaigns/${campaignId}/step2`, data).then(res => res.data);
 }
+// === NOUVELLES FONCTIONS POUR L'ÉTAPE 3 (MODÈLES D'EMAILS) ===
+
+/**
+ * Génère des templates d'emails via l'IA pour une campagne.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {boolean} useSelectedNews - Indique si les templates doivent être basés sur les actualités sélectionnées.
+ * @param {object} customParams - Paramètres additionnels pour la génération.
+ * @returns {Promise<object>} - Les templates générés.
+ */
+export function generateEmailTemplates(campaignId, useSelectedNews = true, customParams = {}) {
+  return client.post(`/campaigns/${campaignId}/templates/generate`, { useSelectedNews, customParams }).then(res => res.data);
+}
+
+/**
+ * Récupère tous les templates d'emails existants pour une campagne.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @returns {Promise<object>} - Les templates de la campagne.
+ */
+export function getEmailTemplates(campaignId) {
+  return client.get(`/campaigns/${campaignId}/templates`).then(res => res.data);
+}
+
+/**
+ * Sélectionne un template d'email spécifique pour une campagne.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {string} templateId - L'ID du template à sélectionner.
+ * @returns {Promise<object>} - La confirmation de sélection.
+ */
+export function selectEmailTemplate(campaignId, templateId) {
+  return client.put(`/campaigns/${campaignId}/templates/${templateId}/select`).then(res => res.data);
+}
+
+/**
+ * Génère un template d'email personnalisé via l'IA.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {object} params - Paramètres de génération (type, sophistication, newsId, customInstructions).
+ * @returns {Promise<object>} - Le template personnalisé généré.
+ */
+export function generateCustomTemplate(campaignId, params) {
+  return client.post(`/campaigns/${campaignId}/templates/custom`, params).then(res => res.data);
+}
+
+/**
+ * Supprime un template d'email d'une campagne.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {string} templateId - L'ID du template à supprimer.
+ * @returns {Promise<object>} - La confirmation de suppression.
+ */
+export function deleteEmailTemplate(campaignId, templateId) {
+  return client.delete(`/campaigns/${campaignId}/templates/${templateId}`).then(res => res.data);
+}
+
+/**
+ * Prévisualise un template d'email avec des données de test.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {string} templateId - L'ID du template à prévisualiser.
+ * @param {object} sampleData - Données de test pour la personnalisation.
+ * @returns {Promise<object>} - Le template avec le contenu prévisualisé.
+ */
+export function previewEmailTemplate(campaignId, templateId, sampleData = {}) {
+  return client.post(`/campaigns/${campaignId}/templates/${templateId}/preview`, { sampleData }).then(res => res.data);
+}
