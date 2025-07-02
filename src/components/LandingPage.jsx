@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Globe, Download, Shield, Eye, ArrowRight, ArrowLeft, Link, CheckCircle, AlertCircle, Copy, Grid, Star } from 'lucide-react';
+import {
+  getLandingPageData,
+  cloneUrl,
+  selectLandingPageTemplate,
+  getLandingPageTemplates,
+  validateLandingPageStep
+} from '../api/campaigns'; // Assurez-vous que le chemin est correct
 
 const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
   // Reset default styles
@@ -10,92 +17,109 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
     document.documentElement.style.padding = '0';
   }, []);
 
-  // Initialiser les états avec les données sauvegardées
+  // Initialiser les états avec les données sauvegardées (si disponibles)
   const [urlToClone, setUrlToClone] = useState(savedData.urlToClone || '');
   const [isCloning, setIsCloning] = useState(false);
-  const [cloneStatus, setCloneStatus] = useState(savedData.cloneStatus || null);
+  const [cloneStatus, setCloneStatus] = useState(savedData.cloneStatus || null); // 'success', 'error', null
   const [previewUrl, setPreviewUrl] = useState(savedData.previewUrl || '');
   const [selectedTemplate, setSelectedTemplate] = useState(savedData.selectedTemplate || null);
   const [activeTab, setActiveTab] = useState(savedData.activeTab || 'clone');
-  
-  // Templates déjà clonés
-  const templates = [
-    {
-      id: 1,
-      name: "Page de connexion Office 365",
-      url: "https://clone.phishwise.com/office365-login",
-      thumbnail: "https://via.placeholder.com/300x200/1e40af/ffffff?text=Office+365",
-      category: "Microsoft",
-      popularity: 5,
-      description: "Page de connexion Microsoft Office 365 classique"
-    },
-    {
-      id: 2,
-      name: "Gmail Login",
-      url: "https://clone.phishwise.com/gmail-login",
-      thumbnail: "https://via.placeholder.com/300x200/dc2626/ffffff?text=Gmail",
-      category: "Google",
-      popularity: 4,
-      description: "Page de connexion Gmail avec authentification"
-    },
-    {
-      id: 3,
-      name: "Facebook Login",
-      url: "https://clone.phishwise.com/facebook-login",
-      thumbnail: "https://via.placeholder.com/300x200/1877f2/ffffff?text=Facebook",
-      category: "Social Media",
-      popularity: 3,
-      description: "Page de connexion Facebook mobile et desktop"
-    },
-    {
-      id: 4,
-      name: "LinkedIn Login",
-      url: "https://clone.phishwise.com/linkedin-login",
-      thumbnail: "https://via.placeholder.com/300x200/0077b5/ffffff?text=LinkedIn",
-      category: "Professional",
-      popularity: 4,
-      description: "Page de connexion LinkedIn professionnelle"
-    },
-    {
-      id: 5,
-      name: "Banking Portal",
-      url: "https://clone.phishwise.com/bank-portal",
-      thumbnail: "https://via.placeholder.com/300x200/059669/ffffff?text=Banking",
-      category: "Finance",
-      popularity: 2,
-      description: "Portail bancaire générique avec authentification forte"
-    },
-    {
-      id: 6,
-      name: "Corporate VPN",
-      url: "https://clone.phishwise.com/corporate-vpn",
-      thumbnail: "https://via.placeholder.com/300x200/7c3aed/ffffff?text=VPN",
-      category: "Enterprise",
-      popularity: 3,
-      description: "Page de connexion VPN d'entreprise"
-    }
-  ];
+  const [templates, setTemplates] = useState([]); // Pour stocker les templates récupérés du backend
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [error, setError] = useState(null); // Pour gérer les erreurs générales
+
+  // Charger les données initiales de la page d'atterrissage et les templates
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!campaignId) {
+        setError("L'ID de la campagne est manquant.");
+        return;
+      }
+      try {
+        // Récupérer les données de la landing page pour cette campagne
+        const response = await getLandingPageData(campaignId);
+        if (response.success && response.data.landingPageData) {
+          const lpData = response.data.landingPageData;
+          setUrlToClone(lpData.originalUrl || '');
+          setCloneStatus(lpData.status || null);
+          setPreviewUrl(lpData.previewUrl || ''); // Utiliser previewUrl du backend
+          setSelectedTemplate(lpData.selectedTemplate || null);
+          setActiveTab(lpData.type === 'template' ? 'template' : 'clone');
+        }
+
+        // Récupérer les templates disponibles
+        const templatesResponse = await getLandingPageTemplates();
+        if (templatesResponse.success) {
+          setTemplates(templatesResponse.data);
+        } else {
+          setError(templatesResponse.message || "Erreur lors du chargement des templates.");
+        }
+      } catch (err) {
+        console.error("Erreur lors du chargement des données de la page d'atterrissage ou des templates:", err);
+        setError("Impossible de charger les données de la page d'atterrissage ou les templates. Veuillez réessayer.");
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
+
+    fetchData();
+  }, [campaignId]); // Dépend de campaignId pour recharger si l'ID change
 
   const handleCloneUrl = async () => {
-    if (!urlToClone.trim()) return;
-    
+    if (!urlToClone.trim() || !isValidUrl(urlToClone)) {
+      setError("Veuillez entrer une URL valide.");
+      return;
+    }
+
     setIsCloning(true);
     setCloneStatus(null);
-    setSelectedTemplate(null);
-    
-    // Simulation du processus de clonage
-    setTimeout(() => {
+    setSelectedTemplate(null); // Désélectionner le template si on clone une URL
+    setError(null); // Réinitialiser les erreurs
+
+    try {
+      const response = await cloneUrl(campaignId, urlToClone);
+      if (response.success) {
+        setCloneStatus('success');
+        setPreviewUrl(response.data.previewUrl);
+      } else {
+        setCloneStatus('error');
+        setError(response.message || "Échec du clonage de l'URL.");
+      }
+    } catch (err) {
+      console.error("Erreur lors du clonage de l'URL:", err);
+      setCloneStatus('error');
+      setError("Une erreur inattendue est survenue lors du clonage.");
+    } finally {
       setIsCloning(false);
-      setCloneStatus('success');
-      setPreviewUrl(`https://clone.phishwise.com/${Math.random().toString(36).substr(2, 9)}`);
-    }, 3000);
+    }
   };
 
-  const handleTemplateSelect = (template) => {
-    setSelectedTemplate(template);
-    setCloneStatus('success');
-    setPreviewUrl(template.url);
-    setUrlToClone('');
+  const handleTemplateSelect = async (template) => {
+    // Ne pas définir selectedTemplate tout de suite pour éviter un aperçu instantané avant le clonage
+    setUrlToClone(''); // Vider l'URL à cloner si on sélectionne un template
+    setCloneStatus(null); // Réinitialiser le statut de clonage d'URL
+    setError(null); // Réinitialiser les erreurs
+    setIsCloning(true); // Indiquer que le processus est en cours
+
+    try {
+      const response = await selectLandingPageTemplate(campaignId, template);
+      if (response.success) {
+        setSelectedTemplate(template); // Sélectionner le template après succès du clonage
+        setCloneStatus('success'); // Indique que la sélection du template est réussie
+        setPreviewUrl(response.data.previewUrl); // Utiliser l'URL clonée par le backend
+      } else {
+        setCloneStatus('error');
+        setError(response.message || "Échec de la sélection du template.");
+        setSelectedTemplate(null); // Annuler la sélection en cas d'échec
+      }
+    } catch (err) {
+      console.error("Erreur lors de la sélection du template:", err);
+      setCloneStatus('error');
+      setError("Une erreur inattendue est survenue lors de la sélection du template.");
+      setSelectedTemplate(null); // Annuler la sélection en cas d'erreur
+    } finally {
+        setIsCloning(false); // Fin du processus
+    }
   };
 
   const isValidUrl = (url) => {
@@ -107,19 +131,31 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
     }
   };
 
-  const canProceed = cloneStatus === 'success' || selectedTemplate;
+  const canProceed = (activeTab === 'clone' && cloneStatus === 'success' && previewUrl) || (activeTab === 'template' && selectedTemplate && previewUrl);
 
-  const handleNext = () => {
+
+  const handleNext = async () => {
     if (canProceed && onNext) {
-      // Sauvegarder toutes les données avant de passer à l'étape suivante
-      const formData = {
-        urlToClone,
-        cloneStatus,
-        previewUrl,
-        selectedTemplate,
-        activeTab
-      };
-      onNext(null, formData);
+      try {
+        // Valider l'étape côté backend
+        const validationResponse = await validateLandingPageStep(campaignId);
+        if (validationResponse.success) {
+          // Sauvegarder toutes les données avant de passer à l'étape suivante
+          const formData = {
+            urlToClone,
+            cloneStatus,
+            previewUrl,
+            selectedTemplate,
+            activeTab
+          };
+          onNext(null, formData); // Passe les données sauvegardées à l'étape suivante
+        } else {
+          setError(validationResponse.message || "La validation de l'étape a échoué.");
+        }
+      } catch (err) {
+        console.error("Erreur lors de la validation de l'étape:", err);
+        setError("Une erreur inattendue est survenue lors de la validation de l'étape.");
+      }
     }
   };
 
@@ -137,6 +173,14 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
       />
     ));
   };
+
+  if (loadingTemplates) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center text-white text-xl">
+        Chargement des pages d'atterrissage...
+      </div>
+    );
+  }
 
   return (
     <div
@@ -210,6 +254,8 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                     onClick={() => {
                       setActiveTab('clone');
                       setSelectedTemplate(null);
+                      setError(null); // Réinitialiser les erreurs lors du changement d'onglet
+                      setPreviewUrl(''); // Vider l'URL de prévisualisation
                     }}
                     className={`flex-1 flex items-center justify-center gap-3 px-4 py-3 rounded-lg font-medium text-base transition-all duration-200 ${
                       activeTab === 'clone'
@@ -225,6 +271,8 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       setActiveTab('template');
                       setCloneStatus(null);
                       setUrlToClone('');
+                      setError(null); // Réinitialiser les erreurs lors du changement d'onglet
+                      setPreviewUrl(''); // Vider l'URL de prévisualisation
                     }}
                     className={`flex-1 flex items-center justify-center gap-3 px-4 py-3 rounded-lg font-medium text-base transition-all duration-200 ${
                       activeTab === 'template'
@@ -238,6 +286,14 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                 </div>
               </div>
             </div>
+
+            {/* Affichage des erreurs globales */}
+            {error && (
+              <div className="flex items-center gap-4 p-4 mb-6 rounded-xl bg-red-500/20 border border-red-500/30 text-red-300">
+                <AlertCircle className="w-6 h-6" />
+                <p className="font-medium text-lg">{error}</p>
+              </div>
+            )}
 
             {/* Contenu des onglets */}
             {activeTab === 'clone' ? (
@@ -286,10 +342,10 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                 </div>
 
                 {/* Statut du clonage */}
-                {cloneStatus && !selectedTemplate && (
+                {cloneStatus && (
                   <div className={`flex items-center gap-4 p-6 rounded-xl ${
-                    cloneStatus === 'success' 
-                      ? 'bg-green-500/20 border border-green-500/30' 
+                    cloneStatus === 'success'
+                      ? 'bg-green-500/20 border border-green-500/30'
                       : 'bg-red-500/20 border border-red-500/30'
                   }`}>
                     {cloneStatus === 'success' ? (
@@ -307,11 +363,11 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                         </p>
                       )}
                     </div>
-                    {cloneStatus === 'success' && (
-                      <button className="px-4 py-2 bg-white/10 text-white text-base rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2">
+                    {cloneStatus === 'success' && previewUrl && ( // S'assurer que previewUrl est disponible
+                      <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-white/10 text-white text-base rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2">
                         <Eye className="w-4 h-4" />
                         Aperçu
-                      </button>
+                      </a>
                     )}
                   </div>
                 )}
@@ -329,7 +385,7 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                         selectedTemplate?.id === template.id
                           ? 'border-cyan-400 shadow-lg shadow-cyan-400/20'
                           : 'border-white/20 hover:border-white/40'
-                      }`}
+                      } ${isCloning ? 'opacity-50 cursor-not-allowed' : ''}`} // Désactiver les clics pendant le clonage
                     >
                       <div className="relative">
                         <img
@@ -353,10 +409,19 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                           <div className="flex gap-1">
                             {renderStars(template.popularity)}
                           </div>
-                          <button className="text-cyan-400 text-base hover:text-cyan-300 transition-colors flex items-center gap-2">
+                          {/* Utiliser previewUrl si le template est sélectionné et l'URL est disponible, sinon l'URL originale du template */}
+                          <a href={selectedTemplate?.id === template.id && previewUrl ? previewUrl : template.url}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="text-cyan-400 text-base hover:text-cyan-300 transition-colors flex items-center gap-2"
+                             onClick={(e) => {
+                                 // Empêcher la propagation pour ne pas déclencher handleTemplateSelect si on clique sur l'aperçu
+                                 e.stopPropagation();
+                             }}
+                          >
                             <Eye className="w-4 h-4" />
                             Aperçu
-                          </button>
+                          </a>
                         </div>
                       </div>
                     </div>
@@ -370,13 +435,15 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                     <div className="flex-1">
                       <p className="font-medium text-lg text-green-300">Template sélectionné !</p>
                       <p className="text-green-400 text-base mt-1">
-                        {selectedTemplate.name} - <span className="font-mono">{selectedTemplate.url}</span>
+                        {selectedTemplate.name} - <span className="font-mono">{previewUrl || selectedTemplate.url}</span> {/* Afficher previewUrl si disponible */}
                       </p>
                     </div>
-                    <button className="px-4 py-2 bg-white/10 text-white text-base rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2">
-                      <Eye className="w-4 h-4" />
-                      Aperçu
-                    </button>
+                    {previewUrl && ( // S'assurer que previewUrl est disponible
+                      <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-white/10 text-white text-base rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2">
+                        <Eye className="w-4 h-4" />
+                        Aperçu
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -429,7 +496,7 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       <h5 className="text-white font-medium text-lg">Téléchargement</h5>
                     </div>
                     <p className="text-gray-400 text-base">
-                      Téléchargement automatique du fichier de test 
+                      Téléchargement automatique du fichier de test
                     </p>
                   </div>
                 </div>
@@ -441,7 +508,7 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                     <div>
                       <h5 className="text-cyan-300 font-medium text-lg mb-2">Configuration automatique</h5>
                       <p className="text-cyan-200 text-base leading-relaxed">
-                        Ces actions sont configurées automatiquement lors du clonage ou de la sélection d'un template. 
+                        Ces actions sont configurées automatiquement lors du clonage ou de la sélection d'un template.
                         Aucune configuration supplémentaire n'est requise.
                       </p>
                     </div>
@@ -452,15 +519,15 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
 
             {/* Navigation */}
             <div className="flex justify-between items-center mt-16 pt-10 border-t border-white/10">
-              <button 
+              <button
                 onClick={handleBack}
                 className="flex items-center space-x-3 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all duration-300 border border-white/20 text-base font-medium hover:scale-105"
               >
                 <ArrowLeft className="w-5 h-5" />
                 <span>Retour</span>
               </button>
-              
-              <button 
+
+              <button
                 onClick={handleNext}
                 disabled={!canProceed}
                 className="flex items-center space-x-3 px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 disabled:hover:scale-100 text-base font-medium"

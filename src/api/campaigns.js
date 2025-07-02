@@ -139,3 +139,60 @@ export function deleteEmailTemplate(campaignId, templateId) {
 export function previewEmailTemplate(campaignId, templateId, sampleData = {}) {
   return client.post(`/campaigns/${campaignId}/templates/${templateId}/preview`, { sampleData }).then(res => res.data);
 }
+// === NOUVELLES FONCTIONS POUR L'ÉTAPE 4 (LANDING PAGE) ===
+
+/**
+ * Récupère les données de la landing page pour une campagne spécifique.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @returns {Promise<object>} - Les données de l'étape 4.
+ */
+export function getLandingPageData(campaignId) {
+  return client.get(`/landingpage/${campaignId}`).then(res => res.data);
+}
+
+/**
+ * Clone une URL pour une campagne.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {string} url - L'URL à cloner.
+ * @returns {Promise<object>} - Le résultat du clonage.
+ */
+export function cloneUrl(campaignId, url) {
+  return client.post(`/landingpage/${campaignId}/clone`, { url }).then(res => res.data);
+}
+
+/**
+ * Sélectionne un template prédéfini pour une campagne.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {object} template - L'objet template sélectionné.
+ * @returns {Promise<object>} - Le résultat de la sélection.
+ */
+export function selectLandingPageTemplate(campaignId, template) {
+  return client.post(`/landingpage/${campaignId}/template`, { template }).then(res => res.data);
+}
+
+/**
+ * Récupère la liste de tous les templates de landing page disponibles.
+ * @returns {Promise<object>} - La liste des templates.
+ */
+export function getLandingPageTemplates() {
+  return client.get(`/landingpage/templates`).then(res => res.data);
+}
+
+/**
+ * Met à jour les actions post-soumission pour une landing page.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @param {object} actions - Les actions à mettre à jour.
+ * @returns {Promise<object>} - La confirmation de la mise à jour.
+ */
+export function updatePostSubmissionActions(campaignId, actions) {
+  return client.put(`/landingpage/${campaignId}/post-submission`, { postSubmissionActions: actions }).then(res => res.data);
+}
+
+/**
+ * Valide l'étape de la landing page.
+ * @param {string} campaignId - L'ID de la campagne.
+ * @returns {Promise<object>} - La confirmation de la validation.
+ */
+export function validateLandingPageStep(campaignId) {
+  return client.post(`/landingpage/${campaignId}/validate`).then(res => res.data);
+}
