@@ -388,11 +388,7 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                       } ${isCloning ? 'opacity-50 cursor-not-allowed' : ''}`} // Désactiver les clics pendant le clonage
                     >
                       <div className="relative">
-                        <img
-                          src={template.thumbnail}
-                          alt={template.name}
-                          className="w-full h-40 object-cover rounded-t-xl"
-                        />
+                        {/* The <img> tag for template thumbnails has been removed as per your request */}
                         <div className="absolute top-3 right-3 px-3 py-1 bg-black/70 text-white text-sm rounded-lg">
                           {template.category}
                         </div>
@@ -411,13 +407,13 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                           </div>
                           {/* Utiliser previewUrl si le template est sélectionné et l'URL est disponible, sinon l'URL originale du template */}
                           <a href={selectedTemplate?.id === template.id && previewUrl ? previewUrl : template.url}
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             className="text-cyan-400 text-base hover:text-cyan-300 transition-colors flex items-center gap-2"
-                             onClick={(e) => {
-                                 // Empêcher la propagation pour ne pas déclencher handleTemplateSelect si on clique sur l'aperçu
-                                 e.stopPropagation();
-                             }}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-cyan-400 text-base hover:text-cyan-300 transition-colors flex items-center gap-2"
+                              onClick={(e) => {
+                                  // Empêcher la propagation pour ne pas déclencher handleTemplateSelect si on clique sur l'aperçu
+                                  e.stopPropagation();
+                              }}
                           >
                             <Eye className="w-4 h-4" />
                             Aperçu
