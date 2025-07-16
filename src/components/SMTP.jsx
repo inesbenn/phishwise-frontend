@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, Shield, CheckCircle, XCircle, AlertCircle, Loader, Eye, Copy, RefreshCw, ArrowRight, ArrowLeft } from 'lucide-react';
+// Import the API functions from your campaigns.js file
+import {
+  configureCampaignDNS,
+  getCampaignDNSStatus // Assuming this function is now in campaigns.js
+} from '../api/campaigns'; // Corrected import path
 
 const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
-  // Reset default styles
+  // Reset default styles for body and html elements
   useEffect(() => {
     document.body.style.margin = '0';
     document.body.style.padding = '0';
@@ -10,73 +15,118 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
     document.documentElement.style.padding = '0';
   }, []);
 
+  // State for SMTP configuration (from email, from name)
   const [smtpConfig, setSmtpConfig] = useState({
     fromEmail: savedData.fromEmail || '',
     fromName: savedData.fromName || ''
   });
 
+  // State for DNS validation results
   const [dnsValidation, setDnsValidation] = useState(savedData.dnsValidation || {
     spf: { status: 'pending', message: '', record: '' },
     dkim: { status: 'pending', message: '', record: '' },
     dmarc: { status: 'pending', message: '', record: '' }
   });
 
+  // State for UI loading/saving indicators and notifications
   const [isValidating, setIsValidating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [validationComplete, setValidationComplete] = useState(savedData.validationComplete || false);
   const [notification, setNotification] = useState(null);
-  const [showRecord, setShowRecord] = useState(null);
+  const [showRecord, setShowRecord] = useState(null); // To toggle visibility of DNS records
 
-  // Function to show notifications
+  // Function to display temporary notifications to the user
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 3000); // Hide notification after 3 seconds
   };
 
+  // Effect hook to fetch existing campaign data when the component mounts or campaignId changes
+  useEffect(() => {
+    const fetchCampaignData = async () => {
+      if (!campaignId) {
+        // If no campaignId is provided, there's nothing to fetch
+        return;
+      }
+      try {
+        // Fetch the DNS status for the current campaign from the backend
+        const response = await getCampaignDNSStatus(campaignId);
+        if (response.success && response.data) {
+          const { domain, dnsValidation: fetchedDnsValidation, validationComplete: fetchedValidationComplete, fromEmail, fromName } = response.data;
+          
+          // Update SMTP config with fetched data, prioritizing fromEmail if available, otherwise domain
+          setSmtpConfig(prev => ({
+            ...prev,
+            fromEmail: fromEmail || domain || prev.fromEmail,
+            fromName: fromName || prev.fromName
+          }));
+          
+          // Update DNS validation state with fetched data, or reset to pending if none
+          setDnsValidation(fetchedDnsValidation || {
+            spf: { status: 'pending', message: '', record: '' },
+            dkim: { status: 'pending', message: '', record: '' },
+            dmarc: { status: 'pending', message: '', record: '' }
+          });
+          
+          // Update overall validation complete status
+          setValidationComplete(fetchedValidationComplete || false);
+        }
+      } catch (error) {
+        console.error("Error fetching campaign DNS status:", error);
+        // Display an error notification to the user
+        showNotification(error.message || 'Erreur lors du chargement des données de campagne DNS.', 'error');
+      }
+    };
+    fetchCampaignData();
+  }, [campaignId]); // Dependency array: re-run effect if campaignId changes
+
+  // Function to trigger DNS record validation via backend API
   const validateDNSRecords = async () => {
     if (!smtpConfig.fromEmail) {
       showNotification('Veuillez entrer une adresse email', 'error');
       return;
     }
-    
-    setIsValidating(true);
-    const domain = smtpConfig.fromEmail.split('@')[1];
-    
+
+    setIsValidating(true); // Set loading state
+    // Extract domain from email for the backend payload (backend will re-extract)
+    const domainToValidate = smtpConfig.fromEmail.split('@')[1]; 
+
     try {
-      // Simulation de validation DNS - remplacer par votre API
-      setTimeout(() => {
+      // Call the backend API to configure and validate DNS for the campaign
+      // This maps to POST /api/dns/campaign/:campaignId/configure
+      const response = await configureCampaignDNS(campaignId, { domain: domainToValidate });
+
+      if (response.success && response.data.validationResults) {
+        const results = response.data.validationResults;
+        // Update local state with the validation results from the backend
         setDnsValidation({
-          spf: { 
-            status: 'success', 
-            message: 'Enregistrement SPF valide trouvé',
-            record: `v=spf1 include:_spf.${domain} ~all`
-          },
-          dkim: { 
-            status: 'error', 
-            message: 'Clé publique non trouvée pour selector1',
-            record: `selector1._domainkey.${domain} IN TXT "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3..."`
-          },
-          dmarc: { 
-            status: 'error', 
-            message: 'Aucun enregistrement DMARC trouvé',
-            record: `_dmarc.${domain} IN TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@${domain}"`
-          }
+          spf: results.spf,
+          dkim: results.dkim,
+          dmarc: results.dmarc
         });
-        setValidationComplete(true);
-      }, 2000);
+        setValidationComplete(results.validationComplete);
+        showNotification('Validation DNS terminée avec succès !', 'success');
+      } else {
+        // Show error message from backend if validation was not successful
+        showNotification(response.message || 'La validation DNS a échoué.', 'error');
+      }
     } catch (error) {
-      showNotification('Erreur de validation DNS', 'error');
+      console.error('API Error during DNS validation:', error);
+      // Display a general error notification for API call failures
+      showNotification(error.message || 'Erreur lors de la validation DNS. Vérifiez la console.', 'error');
     } finally {
-      setIsValidating(false);
+      setIsValidating(false); // Reset loading state
     }
   };
 
+  // Handler for input field changes
   const handleInputChange = (field, value) => {
     setSmtpConfig(prev => ({
       ...prev,
       [field]: value
     }));
-    
+
+    // If the email changes, reset the DNS validation status to prompt re-validation
     if (field === 'fromEmail') {
       setValidationComplete(false);
       setDnsValidation({
@@ -87,45 +137,71 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
     }
   };
 
+  // Function to copy text to clipboard
   const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    showNotification('Enregistrement copié dans le presse-papier', 'success');
+    // Using document.execCommand('copy') for broader compatibility in some iframe environments
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      showNotification('Enregistrement copié dans le presse-papier', 'success');
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      showNotification('Échec de la copie dans le presse-papier', 'error');
+    }
+    document.body.removeChild(textArea);
   };
 
+  // Handler for the "Next" button
   const handleNext = async () => {
     if (!smtpConfig.fromEmail || !smtpConfig.fromName) {
       showNotification('Veuillez remplir tous les champs requis', 'error');
       return;
     }
+    
+    // Ensure DNS validation is complete and successful before allowing to proceed
+    if (!validationComplete) {
+        showNotification('Veuillez valider la configuration DNS avant de continuer.', 'warning');
+        return;
+    }
 
-    setIsSaving(true);
+    setIsSaving(true); // Set saving state
     try {
-      // Simulation de sauvegarde - remplacer par votre API
-      setTimeout(() => {
-        showNotification('Configuration SMTP sauvegardée !', 'success');
-        if (onNext) {
-          const formData = {
+      // The `configureCampaignDNS` API call (triggered by validateDNSRecords)
+      // already saves the DNS validation results to the campaign model on the backend.
+      // So, for `handleNext`, we just need to pass the SMTP config to the parent
+      // if the parent needs to persist these specific fields or navigate.
+      
+      showNotification('Configuration SMTP sauvegardée !', 'success');
+      if (onNext) {
+          // Pass the necessary data for the next step.
+          // This includes the current SMTP config and the final DNS validation state.
+          onNext(null, {
             fromEmail: smtpConfig.fromEmail,
             fromName: smtpConfig.fromName,
-            dnsValidation,
-            validationComplete
-          };
-          onNext(null, formData);
-        }
-        setIsSaving(false);
-      }, 1000);
+            dnsValidation: dnsValidation, // Pass the current state of DNS validation
+            validationComplete: validationComplete,
+            domain: smtpConfig.fromEmail.split('@')[1] // The domain derived from email
+          });
+      }
     } catch (error) {
-      showNotification('Erreur de connexion au serveur', 'error');
-      setIsSaving(false);
+      console.error('API Error during saving SMTP config:', error);
+      showNotification(error.message || 'Erreur lors de la sauvegarde de la configuration SMTP.', 'error');
+    } finally {
+      setIsSaving(false); // Reset saving state
     }
   };
 
+  // Handler for the "Back" button
   const handleBack = () => {
     if (onBack) {
       onBack();
     }
   };
 
+  // Helper function to determine the icon based on status
   const getStatusIcon = (status) => {
     switch (status) {
       case 'success':
@@ -134,11 +210,14 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
         return <AlertCircle className="w-5 h-5 text-amber-400" />;
       case 'error':
         return <XCircle className="w-5 h-5 text-red-400" />;
+      case 'pending': // Icon for pending status
+        return <Loader className="w-5 h-5 animate-spin text-gray-400" />;
       default:
-        return <div className="w-5 h-5 rounded-full bg-gray-600" />;
+        return <div className="w-5 h-5 rounded-full bg-gray-600" />; // Default placeholder
     }
   };
 
+  // Helper function to determine the border and background color based on status
   const getStatusColor = (status) => {
     switch (status) {
       case 'success':
@@ -148,15 +227,18 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
       case 'error':
         return 'border-red-400/50 bg-red-500/20';
       default:
-        return 'border-white/20 bg-white/5';
+        return 'border-white/20 bg-white/5'; // Default for pending/initial
     }
   };
 
+  // Function to check if the form inputs are valid for submission/validation
   const isFormValid = () => {
-    return smtpConfig.fromEmail && 
-           smtpConfig.fromName && 
-           smtpConfig.fromEmail.includes('@') && 
-           smtpConfig.fromEmail.length >= 5;
+    // Basic email format check using a regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return smtpConfig.fromEmail &&
+           smtpConfig.fromName &&
+           emailRegex.test(smtpConfig.fromEmail) &&
+           smtpConfig.fromName.length >= 2;
   };
 
   return (
@@ -164,7 +246,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
       className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-auto"
       style={{ margin: 0, padding: 0, top: 0, left: 0 }}
     >
-      {/* Notification */}
+      {/* Notification Display */}
       {notification && (
         <div className={`fixed top-4 right-4 z-[60] p-4 rounded-lg border backdrop-blur-lg transform transition-all duration-300 ${
           notification.type === 'success' ? 'bg-green-500/20 border-green-400/50 text-green-400' :
@@ -181,7 +263,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
         </div>
       )}
 
-      {/* Header */}
+      {/* Header Section */}
       <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 w-full">
         <div className="w-full px-8 py-5">
           <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
@@ -202,7 +284,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
 
       <div className="w-full px-8 py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Progress */}
+          {/* Progress Bar and Step Indicator */}
           <div className="mb-10">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-3xl font-bold text-white">Création de Campagne</h2>
@@ -225,9 +307,9 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
             </div>
           </div>
 
-          {/* Main Content */}
+          {/* Main Content Area */}
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-10">
-            {/* Section Header */}
+            {/* Section Header: SMTP Configuration */}
             <div className="flex items-center space-x-6 mb-10">
               <div className="p-4 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl">
                 <Mail className="w-10 h-10 text-white" />
@@ -243,6 +325,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
             {/* SMTP Configuration Form */}
             <div className="space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* From Email Input */}
                 <div>
                   <label className="block text-white text-xl font-medium mb-5">
                     Adresse Email d'Expédition *
@@ -257,6 +340,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                   <p className="text-base text-gray-400 mt-3">Format valide requis avec @ et domaine</p>
                 </div>
 
+                {/* From Name Input */}
                 <div>
                   <label className="block text-white text-xl font-medium mb-5">
                     Nom d'Affichage *
@@ -295,7 +379,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
               </div>
             </div>
 
-            {/* DNS Validation Results */}
+            {/* DNS Validation Results Section */}
             <div className="mt-16 pt-10 border-t border-white/10">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center space-x-6">
@@ -307,7 +391,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                     <p className="text-lg text-gray-300">Vérification des enregistrements SPF, DKIM et DMARC</p>
                   </div>
                 </div>
-                {validationComplete && (
+                {smtpConfig.fromEmail && ( // Only show re-check button if an email is entered
                   <button
                     onClick={validateDNSRecords}
                     disabled={isValidating || !isFormValid()}
@@ -319,9 +403,9 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                 )}
               </div>
 
-              {smtpConfig.fromEmail && validationComplete ? (
+              {smtpConfig.fromEmail ? ( // Display results if email is entered
                 <div className="space-y-6">
-                  {/* SPF */}
+                  {/* SPF Result Block */}
                   <div className={`p-6 rounded-xl border ${getStatusColor(dnsValidation.spf.status)} transition-all duration-200`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -345,7 +429,8 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                           'border-white/20 text-gray-400'
                         }`}>
                           {dnsValidation.spf.status === 'success' ? 'OK' :
-                           dnsValidation.spf.status === 'warning' ? 'Attention' : 'Erreur'}
+                           dnsValidation.spf.status === 'warning' ? 'Attention' :
+                           dnsValidation.spf.status === 'pending' ? 'En attente' : 'Erreur'}
                         </span>
                         {dnsValidation.spf.status === 'error' && dnsValidation.spf.record && (
                           <button
@@ -375,7 +460,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                     )}
                   </div>
 
-                  {/* DKIM */}
+                  {/* DKIM Result Block */}
                   <div className={`p-6 rounded-xl border ${getStatusColor(dnsValidation.dkim.status)} transition-all duration-200`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -399,7 +484,8 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                           'border-white/20 text-gray-400'
                         }`}>
                           {dnsValidation.dkim.status === 'success' ? 'OK' :
-                           dnsValidation.dkim.status === 'warning' ? 'Attention' : 'Erreur'}
+                           dnsValidation.dkim.status === 'warning' ? 'Attention' :
+                           dnsValidation.dkim.status === 'pending' ? 'En attente' : 'Erreur'}
                         </span>
                         {dnsValidation.dkim.status === 'error' && dnsValidation.dkim.record && (
                           <button
@@ -429,7 +515,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                     )}
                   </div>
 
-                  {/* DMARC */}
+                  {/* DMARC Result Block */}
                   <div className={`p-6 rounded-xl border ${getStatusColor(dnsValidation.dmarc.status)} transition-all duration-200`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -453,7 +539,8 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                           'border-white/20 text-gray-400'
                         }`}>
                           {dnsValidation.dmarc.status === 'success' ? 'OK' :
-                           dnsValidation.dmarc.status === 'warning' ? 'Attention' : 'Erreur'}
+                           dnsValidation.dmarc.status === 'warning' ? 'Attention' :
+                           dnsValidation.dmarc.status === 'pending' ? 'En attente' : 'Erreur'}
                         </span>
                         {dnsValidation.dmarc.status === 'error' && dnsValidation.dmarc.record && (
                           <button
@@ -484,10 +571,11 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                   </div>
                 </div>
               ) : (
+                // Placeholder message if no email is entered or validation hasn't started
                 <div className="text-center py-16">
                   <Shield className="w-20 h-20 text-gray-500 mx-auto mb-6" />
                   <p className="text-lg text-gray-400">
-                    {!smtpConfig.fromEmail ? 
+                    {!smtpConfig.fromEmail ?
                       'Entrez une adresse email et cliquez sur "Vérifier la Configuration DNS"' :
                       'Cliquez sur "Vérifier la Configuration DNS" pour commencer la validation'
                     }
@@ -496,7 +584,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
               )}
             </div>
 
-            {/* Summary Block */}
+            {/* Summary Block (displayed only if validation is complete) */}
             {validationComplete && (
               <div className="mt-16 pt-10 border-t border-white/10">
                 <h4 className="text-2xl font-bold text-white mb-8">Résumé de Configuration</h4>
@@ -525,9 +613,10 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
               </div>
             )}
 
-            {/* Navigation */}
+            {/* Navigation Buttons */}
             <div className="flex justify-between items-center mt-16 pt-10 border-t border-white/10">
-              <button 
+              {/* Back Button */}
+              <button
                 onClick={handleBack}
                 className="flex items-center space-x-3 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all duration-300 border border-white/20 text-base font-medium hover:scale-105"
               >
@@ -535,9 +624,10 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                 <span>Retour</span>
               </button>
               
-              <button 
+              {/* Next Button */}
+              <button
                 onClick={handleNext}
-                disabled={!isFormValid() || isSaving}
+                disabled={!isFormValid() || isSaving || !validationComplete} // Disabled if form invalid, saving, or validation not complete
                 className="flex items-center space-x-3 px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 disabled:hover:scale-100 text-base font-medium"
               >
                 <span>{isSaving ? 'Sauvegarde...' : 'Suivant'}</span>
@@ -550,5 +640,5 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
     </div>
   );
 };
-// SMTP.jsx
+
 export default SMTP;
