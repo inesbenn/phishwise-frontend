@@ -3,8 +3,8 @@ import { Mail, Shield, CheckCircle, XCircle, AlertCircle, Loader, Eye, Copy, Ref
 // Import the API functions from your campaigns.js file
 import {
   configureCampaignDNS,
-  getCampaignDNSStatus // Assuming this function is now in campaigns.js
-} from '../api/campaigns'; // Corrected import path
+  getCampaignDNSStatus
+} from '../api/campaigns';
 
 const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
   // Reset default styles for body and html elements
@@ -52,12 +52,17 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
         // Fetch the DNS status for the current campaign from the backend
         const response = await getCampaignDNSStatus(campaignId);
         if (response.success && response.data) {
-          const { domain, dnsValidation: fetchedDnsValidation, validationComplete: fetchedValidationComplete, fromEmail, fromName } = response.data;
+          const { 
+            domain, 
+            dnsValidation: fetchedDnsValidation, 
+            validationComplete: fetchedValidationComplete, 
+            fromEmail, 
+            fromName 
+          } = response.data;
           
-          // Update SMTP config with fetched data, prioritizing fromEmail if available, otherwise domain
+          // Update SMTP config with fetched data
           setSmtpConfig(prev => ({
-            ...prev,
-            fromEmail: fromEmail || domain || prev.fromEmail,
+            fromEmail: fromEmail || prev.fromEmail,
             fromName: fromName || prev.fromName
           }));
           
@@ -70,6 +75,13 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
           
           // Update overall validation complete status
           setValidationComplete(fetchedValidationComplete || false);
+
+          console.log('✅ Données de campagne chargées:', {
+            fromEmail: fromEmail || 'Non défini',
+            fromName: fromName || 'Non défini',
+            domain: domain || 'Non défini',
+            validationComplete: fetchedValidationComplete || false
+          });
         }
       } catch (error) {
         console.error("Error fetching campaign DNS status:", error);
@@ -88,13 +100,24 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
     }
 
     setIsValidating(true); // Set loading state
-    // Extract domain from email for the backend payload (backend will re-extract)
+    // Extract domain from email for the backend payload
     const domainToValidate = smtpConfig.fromEmail.split('@')[1]; 
 
     try {
+      console.log('🔍 Début validation DNS/SMTP:', {
+        domain: domainToValidate,
+        fromEmail: smtpConfig.fromEmail,
+        fromName: smtpConfig.fromName,
+        campaignId
+      });
+
       // Call the backend API to configure and validate DNS for the campaign
-      // This maps to POST /api/dns/campaign/:campaignId/configure
-      const response = await configureCampaignDNS(campaignId, { domain: domainToValidate });
+      // This will also save the SMTP configuration (fromEmail, fromName)
+      const response = await configureCampaignDNS(campaignId, { 
+        domain: domainToValidate,
+        fromEmail: smtpConfig.fromEmail,
+        fromName: smtpConfig.fromName
+      });
 
       if (response.success && response.data.validationResults) {
         const results = response.data.validationResults;
@@ -105,7 +128,16 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
           dmarc: results.dmarc
         });
         setValidationComplete(results.validationComplete);
-        showNotification('Validation DNS terminée avec succès !', 'success');
+        
+        console.log('✅ Validation DNS/SMTP terminée:', {
+          validationComplete: results.validationComplete,
+          spfStatus: results.spf.status,
+          dkimStatus: results.dkim.status,
+          dmarcStatus: results.dmarc.status,
+          smtpSaved: response.data.smtpData ? 'Oui' : 'Non'
+        });
+
+        showNotification('Validation DNS terminée et configuration SMTP sauvegardée !', 'success');
       } else {
         // Show error message from backend if validation was not successful
         showNotification(response.message || 'La validation DNS a échoué.', 'error');
@@ -169,12 +201,18 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
 
     setIsSaving(true); // Set saving state
     try {
-      // The `configureCampaignDNS` API call (triggered by validateDNSRecords)
-      // already saves the DNS validation results to the campaign model on the backend.
-      // So, for `handleNext`, we just need to pass the SMTP config to the parent
-      // if the parent needs to persist these specific fields or navigate.
+      console.log('💾 Passage à l\'étape suivante avec configuration SMTP:', {
+        fromEmail: smtpConfig.fromEmail,
+        fromName: smtpConfig.fromName,
+        validationComplete,
+        domain: smtpConfig.fromEmail.split('@')[1]
+      });
+
+      // The SMTP configuration is already saved in the backend via the validateDNSRecords call
+      // which uses configureCampaignDNS. No additional save is needed here.
       
-      showNotification('Configuration SMTP sauvegardée !', 'success');
+      showNotification('Configuration SMTP validée ! Passage à l\'étape suivante...', 'success');
+      
       if (onNext) {
           // Pass the necessary data for the next step.
           // This includes the current SMTP config and the final DNS validation state.
@@ -187,8 +225,8 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
           });
       }
     } catch (error) {
-      console.error('API Error during saving SMTP config:', error);
-      showNotification(error.message || 'Erreur lors de la sauvegarde de la configuration SMTP.', 'error');
+      console.error('Error during next step transition:', error);
+      showNotification(error.message || 'Erreur lors du passage à l\'étape suivante.', 'error');
     } finally {
       setIsSaving(false); // Reset saving state
     }
@@ -367,7 +405,7 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                   {isValidating ? (
                     <>
                       <Loader className="w-5 h-5 animate-spin" />
-                      <span>Vérification...</span>
+                      <span>Vérification et sauvegarde...</span>
                     </>
                   ) : (
                     <>
@@ -607,6 +645,10 @@ const SMTP = ({ campaignId, onNext, onBack, savedData = {} }) => {
                           <span className="text-amber-400 font-medium">⚠ Certains enregistrements nécessitent une attention</span>
                         )}
                       </span>
+                    </div>
+                    <div className="col-span-1 md:col-span-2">
+                      <span className="text-gray-400">Configuration SMTP :</span>
+                      <span className="text-green-400 font-medium ml-3">✓ Sauvegardée dans la campagne</span>
                     </div>
                   </div>
                 </div>
