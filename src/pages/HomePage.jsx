@@ -1,6 +1,6 @@
+
 import { useState, useEffect } from 'react';
-import LearningPagesManagement from './LearningPagesManagement';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Shield, 
   Users, 
@@ -25,25 +25,168 @@ import {
   X,
   FileText,
   Edit3,
-  GraduationCap
+  GraduationCap,
+  RefreshCw,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
-export default function AdminDashboard() {
-  const [activeNotifications, setActiveNotifications] = useState(3);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [campaigns, setCampaigns] = useState([
-    { id: 1, name: "Campagne Black Friday", status: "active", sent: 245, opened: 89, clicked: 12, completion: 65, progress: 75 },
-    { id: 2, name: "Simulation IT Support", status: "active", sent: 156, opened: 67, clicked: 8, completion: 45, progress: 60 },
-    { id: 3, name: "Test Phishing RH", status: "completed", sent: 89, opened: 78, clicked: 3, completion: 92, progress: 100 }
-  ]);
-const navigate = useNavigate();
+// Simulation des appels API (remplacez par vos vrais appels)
+const API_BASE_URL = 'http://localhost:3000/api';
 
-  const [recentActivity, setRecentActivity] = useState([
-    { time: "Il y a 5 min", action: "12 employés ont terminé leur formation", type: "success" },
-    { time: "Il y a 15 min", action: "Nouvelle campagne 'Black Friday' lancée", type: "info" },
-    { time: "Il y a 1h", action: "Alerte: Taux de clic élevé (15%) détecté", type: "warning" },
-    { time: "Il y a 2h", action: "245 emails envoyés avec succès", type: "success" }
-  ]);
+const dashboardAPI = {
+  async getDashboardStats() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Erreur getDashboardStats:', error);
+      // Données de fallback
+      return {
+        activeCampaigns: 8,
+        newCampaignsThisMonth: 2,
+        totalEmployees: 1247,
+        successRate: 87,
+        activeAlerts: 3
+      };
+    }
+  },
+
+  async getActiveCampaigns() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard/campaigns`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Erreur getActiveCampaigns:', error);
+      // Données de fallback
+      return [
+        { id: 1, name: "Campagne Black Friday", status: "active", sent: 245, opened: 89, clicked: 12, completion: 65, progress: 75 },
+        { id: 2, name: "Simulation IT Support", status: "active", sent: 156, opened: 67, clicked: 8, completion: 45, progress: 60 },
+        { id: 3, name: "Test Phishing RH", status: "completed", sent: 89, opened: 78, clicked: 3, completion: 92, progress: 100 }
+      ];
+    }
+  },
+
+  async getRecentActivity() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard/recent-activity`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Erreur getRecentActivity:', error);
+      // Données de fallback
+      return [
+        { time: "Il y a 5 min", action: "12 employés ont terminé leur formation", type: "success" },
+        { time: "Il y a 15 min", action: "Nouvelle campagne 'Black Friday' lancée", type: "info" },
+        { time: "Il y a 1h", action: "Alerte: Taux de clic élevé (15%) détecté", type: "warning" },
+        { time: "Il y a 2h", action: "245 emails envoyés avec succès", type: "success" }
+      ];
+    }
+  },
+
+  async getRecommendations() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard/recommendations`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Erreur getRecommendations:', error);
+      // Données de fallback
+      return [
+        {
+          type: 'warning',
+          message: '📊 Le département Finance montre un taux de clic élevé. Envisagez une formation ciblée.',
+          priority: 'high'
+        },
+        {
+          type: 'info',
+          message: '🎯 Moment optimal pour une campagne : Vendredi 14h-16h (taux d\'ouverture +23%).',
+          priority: 'medium'
+        }
+      ];
+    }
+  }
+};
+
+export default function AdminDashboard() {
+  // États pour les données
+  const [dashboardStats, setDashboardStats] = useState({
+    activeCampaigns: 0,
+    newCampaignsThisMonth: 0,
+    totalEmployees: 0,
+    successRate: 0,
+    activeAlerts: 0
+  });
+  
+  const [campaigns, setCampaigns] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  
+  // États pour l'interface
+  const [isLoading, setIsLoading] = useState(true);
+  const [isConnected, setIsConnected] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const navigate = useNavigate();
+
+  // Fonction pour charger toutes les données
+  const loadDashboardData = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Charger toutes les données en parallèle
+      const [stats, campaignsData, activity, recs] = await Promise.all([
+        dashboardAPI.getDashboardStats(),
+        dashboardAPI.getActiveCampaigns(),
+        dashboardAPI.getRecentActivity(),
+        dashboardAPI.getRecommendations()
+      ]);
+
+      setDashboardStats(stats);
+      setCampaigns(campaignsData);
+      setRecentActivity(activity);
+      setRecommendations(recs);
+      setIsConnected(true);
+      setLastRefresh(new Date());
+      
+    } catch (err) {
+      console.error('Erreur lors du chargement du dashboard:', err);
+      setError('Erreur de connexion au serveur');
+      setIsConnected(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Charger les données au montage du composant
+  useEffect(() => {
+    loadDashboardData();
+    
+    // Actualisation automatique toutes les 30 secondes
+    const interval = setInterval(() => {
+      loadDashboardData(false);
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fonction pour actualiser manuellement
+  const handleRefresh = () => {
+    loadDashboardData();
+  };
+
+  // Formater les nombres
+  const formatNumber = (num) => {
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k';
+    }
+    return num.toString();
+  };
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-x-hidden">
@@ -58,6 +201,17 @@ const navigate = useNavigate();
               <span className="px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-xs sm:text-sm font-medium">
                 Admin
               </span>
+              {/* Indicateur de connexion */}
+              <div className="flex items-center space-x-1">
+                {isConnected ? (
+                  <Wifi className="w-4 h-4 text-green-400" />
+                ) : (
+                  <WifiOff className="w-4 h-4 text-red-400" />
+                )}
+                <span className="text-xs text-gray-400 hidden sm:inline">
+                  {lastRefresh.toLocaleTimeString()}
+                </span>
+              </div>
             </div>
             
             {/* Desktop Navigation */}
@@ -70,11 +224,22 @@ const navigate = useNavigate();
                   className="pl-10 pr-4 py-2 w-40 lg:w-60 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm"
                 />
               </div>
+              
+              {/* Bouton refresh */}
+              <button 
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="p-2 text-gray-300 hover:text-white disabled:opacity-50"
+                title="Actualiser"
+              >
+                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+              
               <div className="relative">
                 <Bell className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 hover:text-white cursor-pointer" />
-                {activeNotifications > 0 && (
+                {dashboardStats.activeAlerts > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 lg:w-5 lg:h-5 flex items-center justify-center">
-                    {activeNotifications}
+                    {dashboardStats.activeAlerts}
                   </span>
                 )}
               </div>
@@ -85,11 +250,18 @@ const navigate = useNavigate();
 
             {/* Mobile Menu Button */}
             <div className="md:hidden flex items-center space-x-3">
+              <button 
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="p-2 text-gray-300 hover:text-white disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
               <div className="relative">
                 <Bell className="w-5 h-5 text-gray-300 hover:text-white cursor-pointer" />
-                {activeNotifications > 0 && (
+                {dashboardStats.activeAlerts > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                    {activeNotifications}
+                    {dashboardStats.activeAlerts}
                   </span>
                 )}
               </div>
@@ -125,14 +297,33 @@ const navigate = useNavigate();
       </header>
 
       <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+        {/* Message d'erreur */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6 flex items-center space-x-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
+            <div>
+              <p className="text-red-300 font-medium">Erreur de connexion</p>
+              <p className="text-red-200 text-sm">{error}</p>
+            </div>
+          </div>
+        )}
+
         {/* Métriques Clés */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-gray-300 text-xs sm:text-sm truncate">Campagnes Actives</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">8</p>
-                <p className="text-green-400 text-xs sm:text-sm">+2 ce mois</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                  {isLoading ? (
+                    <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
+                  ) : (
+                    dashboardStats.activeCampaigns
+                  )}
+                </p>
+                <p className="text-green-400 text-xs sm:text-sm">
+                  +{dashboardStats.newCampaignsThisMonth} ce mois
+                </p>
               </div>
               <div className="p-2 sm:p-3 bg-cyan-500/20 rounded-full flex-shrink-0">
                 <Target className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-cyan-400" />
@@ -144,7 +335,13 @@ const navigate = useNavigate();
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-gray-300 text-xs sm:text-sm truncate">Employés Sensibilisés</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">1,247</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                  {isLoading ? (
+                    <div className="animate-pulse bg-gray-600 h-8 w-16 rounded"></div>
+                  ) : (
+                    formatNumber(dashboardStats.totalEmployees)
+                  )}
+                </p>
                 <p className="text-green-400 text-xs sm:text-sm">+156 ce mois</p>
               </div>
               <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
@@ -157,7 +354,13 @@ const navigate = useNavigate();
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-gray-300 text-xs sm:text-sm truncate">Taux de Réussite</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">87%</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                  {isLoading ? (
+                    <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
+                  ) : (
+                    `${dashboardStats.successRate}%`
+                  )}
+                </p>
                 <p className="text-green-400 text-xs sm:text-sm">+5% vs mois dernier</p>
               </div>
               <div className="p-2 sm:p-3 bg-green-500/20 rounded-full flex-shrink-0">
@@ -170,7 +373,13 @@ const navigate = useNavigate();
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-gray-300 text-xs sm:text-sm truncate">Alertes Actives</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">3</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                  {isLoading ? (
+                    <div className="animate-pulse bg-gray-600 h-8 w-8 rounded"></div>
+                  ) : (
+                    dashboardStats.activeAlerts
+                  )}
+                </p>
                 <p className="text-red-400 text-xs sm:text-sm">Nécessitent attention</p>
               </div>
               <div className="p-2 sm:p-3 bg-red-500/20 rounded-full flex-shrink-0">
@@ -257,46 +466,64 @@ const navigate = useNavigate();
               </div>
 
               <div className="space-y-3 sm:space-y-4">
-                {campaigns.map((campaign) => (
-                  <div key={campaign.id} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">{campaign.name}</h3>
-                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
-                        campaign.status === 'active' 
-                          ? 'bg-green-500/20 text-green-400' 
-                          : 'bg-gray-500/20 text-gray-400'
-                      }`}>
-                        {campaign.status === 'active' ? 'Actif' : 'Terminé'}
-                      </span>
+                {isLoading ? (
+                  // Skeleton loader pour les campagnes
+                  [...Array(3)].map((_, index) => (
+                    <div key={index} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 animate-pulse">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="bg-gray-600 h-4 w-32 rounded"></div>
+                        <div className="bg-gray-600 h-6 w-16 rounded-full"></div>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-3">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="bg-gray-600 h-3 w-20 rounded"></div>
+                        ))}
+                      </div>
+                      <div className="bg-gray-600 h-2 w-full rounded-full"></div>
                     </div>
-                    
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-3 text-xs sm:text-sm">
-                      <div className="flex items-center space-x-1 sm:space-x-2">
-                        <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
-                        <span className="text-gray-300 truncate">{campaign.sent} envoyés</span>
+                  ))
+                ) : (
+                  campaigns.map((campaign) => (
+                    <div key={campaign.id} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">{campaign.name}</h3>
+                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
+                          campaign.status === 'active' 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {campaign.status === 'active' ? 'Actif' : 'Terminé'}
+                        </span>
                       </div>
-                      <div className="flex items-center space-x-1 sm:space-x-2">
-                        <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
-                        <span className="text-gray-300 truncate">{campaign.opened} ouverts</span>
+                      
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-3 text-xs sm:text-sm">
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
+                          <span className="text-gray-300 truncate">{campaign.sent} envoyés</span>
+                        </div>
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
+                          <span className="text-gray-300 truncate">{campaign.opened} ouverts</span>
+                        </div>
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <MousePointer className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0" />
+                          <span className="text-gray-300 truncate">{campaign.clicked} clics</span>
+                        </div>
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
+                          <span className="text-gray-300 truncate">{campaign.completion}% formés</span>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-1 sm:space-x-2">
-                        <MousePointer className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0" />
-                        <span className="text-gray-300 truncate">{campaign.clicked} clics</span>
-                      </div>
-                      <div className="flex items-center space-x-1 sm:space-x-2">
-                        <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
-                        <span className="text-gray-300 truncate">{campaign.completion}% formés</span>
+                      
+                      <div className="w-full bg-white/10 rounded-full h-1.5 sm:h-2">
+                        <div 
+                          className="bg-gradient-to-r from-cyan-400 to-purple-400 h-1.5 sm:h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${campaign.progress}%` }}
+                        ></div>
                       </div>
                     </div>
-                    
-                    <div className="w-full bg-white/10 rounded-full h-1.5 sm:h-2">
-                      <div 
-                        className="bg-gradient-to-r from-cyan-400 to-purple-400 h-1.5 sm:h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${campaign.progress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
