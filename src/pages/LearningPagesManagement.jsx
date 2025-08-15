@@ -20,7 +20,6 @@ import {
   Award,
   Target,
   Shield,
-  AlertTriangle,
   Download,
   Star,
   Trophy,
@@ -29,13 +28,22 @@ import {
   Lock,
   Loader,
   AlertCircle,
-  Database
+  Database,
+  TrendingUp,
+  BarChart3,
+  Mail,
+  MapPin,
+  Briefcase,
+  Calendar,
+  Activity,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 
 // Configuration de l'API
 const API_BASE_URL = 'http://localhost:3000/api';
 
-// Client API simple
+// Client API
 class LearningAPIClient {
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -51,8 +59,8 @@ class LearningAPIClient {
       ...options,
     };
 
-    // Ajouter le token si disponible (pour plus tard)
-    const token = localStorage.getItem('authToken');
+    // Ajouter le token si disponible
+    const token = localStorage && localStorage.getItem ? localStorage.getItem('authToken') : null;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -97,7 +105,11 @@ class LearningAPIClient {
     });
   }
 
-  // Progression
+  // Campagnes et progression
+  async getCampaignStats(campaignId) {
+    return this.request(`/learning/campaigns/${campaignId}/stats`);
+  }
+
   async getCampaignFormations(campaignId, targetEmail) {
     return this.request(`/learning/campaigns/${campaignId}/users/${targetEmail}/formations`);
   }
@@ -115,11 +127,16 @@ class LearningAPIClient {
       body: JSON.stringify(data),
     });
   }
+
+  // Récupérer les données de campagne avec les targets
+  async getCampaignData(campaignId) {
+    return this.request(`/campaigns/${campaignId}`);
+  }
 }
 
 const apiClient = new LearningAPIClient();
 
-// Helper component for input fields
+// Helper components
 const ModuleInputField = ({ label, value, onChange, placeholder, type = "text", rows = 1, min, max, required }) => (
   <div className="mb-4">
     <label className="block text-white text-lg font-medium mb-2">{label}{required && <span className="text-red-500">*</span>}</label>
@@ -145,15 +162,9 @@ const ModuleInputField = ({ label, value, onChange, placeholder, type = "text", 
       />
     )}
   </div>
-);
-
-// Loading Spinner Component
-const LoadingSpinner = ({ size = "w-6 h-6", className = "" }) => (
+);const LoadingSpinner = ({ size = "w-6 h-6", className = "" }) => (
   <Loader className={`animate-spin ${size} ${className}`} />
-);
-
-// Error Alert Component
-const ErrorAlert = ({ error, onDismiss }) => (
+);const ErrorAlert = ({ error, onDismiss }) => (
   <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 mb-4 flex items-start space-x-3">
     <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
     <div className="flex-1">
@@ -169,10 +180,7 @@ const ErrorAlert = ({ error, onDismiss }) => (
       </button>
     )}
   </div>
-);
-
-// Success Alert Component
-const SuccessAlert = ({ message, onDismiss }) => (
+);const SuccessAlert = ({ message, onDismiss }) => (
   <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-4 flex items-start space-x-3">
     <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
     <div className="flex-1">
@@ -189,62 +197,36 @@ const SuccessAlert = ({ message, onDismiss }) => (
   </div>
 );
 
-export default function IntegratedLearningPlatform({ campaignId, onNext, onBack }) {
-  // Navigation and UI states
+export default function LearningPagesManagement({ campaignId, onNext, onBack }) {
+  // States
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [isCreateModuleModalOpen, setIsCreateModuleModal] = useState(false);
-  const [activeModuleId, setActiveModuleId] = useState(null);
-  const [isPreview, setIsPreview] = useState(false);
-  const [selectedModuleTypeForCreation, setSelectedModuleTypeForCreation] = useState('text');
-  const [isCreateFormationModalOpen, setIsCreateFormationModalOpen] = useState(false);
-  const [copiedMessage, setCopiedMessage] = useState('');
-  const [isEditFormationModalOpen, setIsEditFormationModalOpen] = useState(false);
-  const [formationToEdit, setFormationToEdit] = useState(null);
-  
-  // Loading and error states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   
-  // Learning specific states
+  // Data states - maintenant connectés au backend
+  const [formations, setFormations] = useState([]);
+  const [campaignData, setCampaignData] = useState(null);
+  const [campaignStats, setCampaignStats] = useState(null);
+  const [userProgresses, setUserProgresses] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+
+  // Module et formation states
+  const [activeFormationId, setActiveFormationId] = useState(null);
+  const [activeModuleId, setActiveModuleId] = useState(null);
+  const [isPreview, setIsPreview] = useState(false);
+  const [isCreateFormationModalOpen, setIsCreateFormationModalOpen] = useState(false);
+  const [isCreateModuleModalOpen, setIsCreateModuleModal] = useState(false);
+  const [selectedModuleTypeForCreation, setSelectedModuleTypeForCreation] = useState('text');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [copiedMessage, setCopiedMessage] = useState('');
+
+  // Learning states
   const [selectedFormationForLearning, setSelectedFormationForLearning] = useState(null);
   const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
-  const [userProgress, setUserProgress] = useState({});
-  const [quizAnswers, setQuizAnswers] = useState({});
-  const [showResults, setShowResults] = useState(false);
 
-  // Data states - now connected to backend
-  const [formations, setFormations] = useState([]);
-  const [activeFormationId, setActiveFormationId] = useState(null);
-
-  // Sample users data (this would eventually come from backend too)
-  const [users] = useState([
-    {
-      id: 1,
-      name: "Marie Dubois",
-      email: "marie.dubois@example.com",
-      progress: {},
-      joinDate: "2025-07-15"
-    },
-    {
-      id: 2,
-      name: "Pierre Martin",
-      email: "pierre.martin@example.com",
-      progress: {},
-      joinDate: "2025-07-20"
-    },
-    {
-      id: 3,
-      name: "Sophie Laurent",
-      email: "sophie.laurent@example.com",
-      progress: {},
-      joinDate: "2025-08-01"
-    }
-  ]);
-
-  // Categories and module types
+  // Categories et types
   const categories = [
     { value: 'all', label: 'Toutes les catégories' },
     { value: 'basics', label: 'Bases' },
@@ -261,26 +243,24 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
     { value: 'simulation', label: 'Simulation', icon: Target, color: 'orange', description: 'Exercice interactif de mise en situation' }
   ];
 
-  const difficultyColors = {
-    'débutant': 'green',
-    'intermédiaire': 'yellow',
-    'avancé': 'red'
-  };
+  const statusOptions = [
+    { value: 'all', label: 'Tous les statuts' },
+    { value: 'not_started', label: 'Non commencé' },
+    { value: 'in_progress', label: 'En cours' },
+    { value: 'completed', label: 'Terminé' },
+    { value: 'failed', label: 'Échoué' }
+  ];
 
-  // Get current formation
-  const currentFormation = formations.find(f => f._id === activeFormationId || f.id === activeFormationId);
-  const currentFormationModules = currentFormation ? currentFormation.modules : [];
-
-  // Load formations from backend on mount
+  // Load data on mount
   useEffect(() => {
-    loadFormations();
+    loadAllData();
     document.body.style.margin = '0';
     document.body.style.padding = '0';
     document.documentElement.style.margin = '0';
     document.documentElement.style.padding = '0';
-  }, []);
+  }, [campaignId]);
 
-  // Helper functions for API calls
+  // Helper functions
   const showError = (message) => {
     setError(message);
     setTimeout(() => setError(null), 5000);
@@ -291,14 +271,31 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  const loadFormations = async () => {
+  const loadAllData = async () => {
     setLoading(true);
+    try {
+      // Charger les formations
+      await loadFormations();
+      
+      // Charger les données de la campagne et les statistiques si campaignId est fourni
+      if (campaignId) {
+        await loadCampaignData();
+        await loadCampaignStats();
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement des données:', error);
+      showError('Impossible de charger les données: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFormations = async () => {
     try {
       const response = await apiClient.getAllFormations();
       const formationsData = response.success ? response.data : response;
       setFormations(Array.isArray(formationsData) ? formationsData : []);
-      
-      // Set first formation as active if none selected
+  
       if (formationsData.length > 0 && !activeFormationId) {
         setActiveFormationId(formationsData[0]._id || formationsData[0].id);
       }
@@ -306,9 +303,35 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
       console.log('✅ Formations chargées:', formationsData.length);
     } catch (error) {
       console.error('❌ Erreur lors du chargement des formations:', error);
-      showError('Impossible de charger les formations: ' + error.message);
-    } finally {
-      setLoading(false);
+      throw error;
+    }
+  };
+
+  const loadCampaignData = async () => {
+    if (!campaignId) return;
+    
+    try {
+      const response = await apiClient.getCampaignData(campaignId);
+      setCampaignData(response.data || response);
+      console.log('✅ Données de campagne chargées');
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement de la campagne:', error);
+      // Ne pas throw ici pour ne pas bloquer le chargement des autres données
+    }
+  };
+
+  const loadCampaignStats = async () => {
+    if (!campaignId) return;
+    
+    try {
+      const response = await apiClient.getCampaignStats(campaignId);
+      const statsData = response.success ? response.data : response;
+      setCampaignStats(statsData);
+      setUserProgresses(statsData.userDetails || []);
+      console.log('✅ Statistiques de campagne chargées');
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement des statistiques:', error);
+      // Ne pas throw ici pour ne pas bloquer le chargement des autres données
     }
   };
 
@@ -368,7 +391,11 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
     }
   };
 
-  // Module management (local until backend module endpoints are added)
+  // Get current formation
+  const currentFormation = formations.find(f => f._id === activeFormationId || f.id === activeFormationId);
+  const currentFormationModules = currentFormation ? currentFormation.modules || [] : [];
+
+  // Module management
   const addModuleToActiveFormation = async (newModuleData) => {
     const formationId = activeFormationId;
     const currentFormation = formations.find(f => (f._id || f.id) === formationId);
@@ -380,7 +407,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
 
     const newModule = {
       ...newModuleData,
-      id: Date.now(), // Temporary ID generation
+      id: Date.now(),
     };
 
     const updatedModules = [...(currentFormation.modules || []), newModule];
@@ -437,8 +464,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
     }
   };
 
-  // Copy module function
-  const copyModule = async (module) => {
+const copyModule = async (module) => {
     const copiedModule = {
       ...module,
       id: Date.now(),
@@ -464,42 +490,107 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
   // Learning functions
   const startFormation = (formation) => {
     setSelectedFormationForLearning(formation);
-    setCurrentModuleIndex(0);
-    setQuizAnswers({});
-    setShowResults(false);
+  setCurrentModuleIndex(0);
     setActiveTab('learning');
   };
 
-  const completeModule = (moduleId) => {
-    setUserProgress(prev => ({
-      ...prev,
-      [selectedFormationForLearning._id || selectedFormationForLearning.id]: {
-        ...prev[selectedFormationForLearning._id || selectedFormationForLearning.id],
-        [moduleId]: true
+  // Filter functions
+  const getFilteredUsers = () => {
+    if (!userProgresses) return [];
+
+    return userProgresses.filter(user => {
+      const matchesSearch = 
+        user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      if (selectedStatus === 'all') return matchesSearch;
+
+      // Déterminer le statut de l'utilisateur basé sur ses formations
+      let userStatus = 'not_started';
+      if (user.totalFormationsCompleted > 0) {
+        userStatus = user.totalFormationsStarted > user.totalFormationsCompleted ? 'in_progress' : 'completed';
+      } else if (user.totalFormationsStarted > 0) {
+        userStatus = 'in_progress';
       }
-    }));
+
+      return matchesSearch && userStatus === selectedStatus;
+    });
   };
 
-  const nextModule = () => {
-    if (currentModuleIndex < selectedFormationForLearning.modules.length - 1) {
-      setCurrentModuleIndex(prev => prev + 1);
+  // Calculer les statistiques des utilisateurs
+  const calculateUserStats = () => {
+    if (!userProgresses || userProgresses.length === 0) {
+      return {
+        totalUsers: campaignData?.targets?.length || 0,
+        activeUsers: 0,
+        completionRate: 0,
+        averageScore: 0,
+        totalBadges: 0
+      };
+    }
+
+    const totalUsers = campaignData?.targets?.length || userProgresses.length;
+    const activeUsers = userProgresses.filter(user => {
+      if (!user.lastActivity) return false;
+      const lastActivity = new Date(user.lastActivity);
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return lastActivity > weekAgo;
+    }).length;
+
+    const totalFormationsAssigned = userProgresses.reduce((acc, user) => acc + (user.formations?.length || 0), 0);
+    const totalFormationsCompleted = userProgresses.reduce((acc, user) => acc + user.totalFormationsCompleted, 0);
+    const completionRate = totalFormationsAssigned > 0 ? Math.round((totalFormationsCompleted / totalFormationsAssigned) * 100) : 0;
+
+    const averageScore = userProgresses.length > 0 
+      ? Math.round(userProgresses.reduce((acc, user) => acc + (user.averageScore || 0), 0) / userProgresses.length)
+      : 0;
+
+    const totalBadges = userProgresses.reduce((acc, user) => acc + user.totalBadgesEarned, 0);
+
+    return {
+      totalUsers,
+      activeUsers,
+      completionRate,
+      averageScore,
+      totalBadges
+    };
+  };
+
+  const userStats = calculateUserStats();
+
+  // Obtenir le statut d'un utilisateur
+  const getUserStatus = (user) => {
+    if (user.totalFormationsCompleted > 0) {
+      return user.totalFormationsStarted > user.totalFormationsCompleted ? 'in_progress' : 'completed';
+    } else if (user.totalFormationsStarted > 0) {
+      return 'in_progress';
+    }
+    return 'not_started';
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'bg-green-500/20 text-green-400';
+      case 'in_progress': return 'bg-yellow-500/20 text-yellow-400';
+      case 'not_started': return 'bg-gray-500/20 text-gray-400';
+      case 'failed': return 'bg-red-500/20 text-red-400';
+      default: return 'bg-gray-500/20 text-gray-400';
     }
   };
 
-  const prevModule = () => {
-    if (currentModuleIndex > 0) {
-      setCurrentModuleIndex(prev => prev - 1);
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'completed': return 'Terminé';
+      case 'in_progress': return 'En cours';
+      case 'not_started': return 'Non commencé';
+      case 'failed': return 'Échoué';
+      default: return 'Inconnu';
     }
   };
 
-  // Filter modules
-  const filteredModules = currentFormationModules.filter(module => {
-    const matchesSearch = module.title.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || module.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  // Dashboard Component
+  // Dashboard Component avec données dynamiques
   const Dashboard = () => (
     <div className="space-y-8">
       {error && <ErrorAlert error={error} onDismiss={() => setError(null)} />}
@@ -513,7 +604,9 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
           </div>
           <div>
             <h2 className="text-3xl font-bold text-white mb-2">Plateforme de Cybersécurité Interactive</h2>
-            <p className="text-gray-300 text-lg">Formez-vous aux bonnes pratiques de sécurité informatique</p>
+            <p className="text-gray-300 text-lg">
+              {campaignData?.name ? `Campagne: ${campaignData.name}` : 'Formez-vous aux bonnes pratiques de sécurité informatique'}
+            </p>
           </div>
         </div>
 
@@ -543,10 +636,14 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
           <div className="bg-white/10 rounded-xl p-6 border border-white/20">
             <div className="flex items-center space-x-3 mb-4">
               <Users className="w-6 h-6 text-green-400" />
-              <h3 className="text-white font-semibold">Utilisateurs Actifs</h3>
+              <h3 className="text-white font-semibold">Utilisateurs</h3>
             </div>
-            <div className="text-3xl font-bold text-green-400 mb-2">{users.length}</div>
-            <p className="text-gray-400 text-sm">Participants enregistrés</p>
+            <div className="text-3xl font-bold text-green-400 mb-2">
+              {userStats.activeUsers}/{userStats.totalUsers}
+            </div>
+            <p className="text-gray-400 text-sm">
+              {campaignId ? 'Targets de la campagne' : 'Participants cette semaine'}
+            </p>
           </div>
         </div>
 
@@ -558,35 +655,268 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
         )}
       </div>
 
-      {/* API Connection Status */}
+      {/* Statistiques de Progression des Utilisateurs */}
       <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 p-6 shadow-xl">
-        <h3 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
-          <Shield className="w-6 h-6 text-cyan-400" />
-          <span>État de la Connexion Backend</span>
-        </h3>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-white flex items-center space-x-2">
+            <TrendingUp className="w-6 h-6 text-cyan-400" />
+            <span>Progression des Utilisateurs</span>
+            {campaignData && (
+              <span className="text-sm text-gray-400 ml-2">({campaignData.name})</span>
+            )}
+          </h3>
+          <button
+            onClick={loadCampaignStats}
+            disabled={loading || !campaignId}
+            className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-all duration-300 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? <LoadingSpinner size="w-4 h-4" /> : <Activity className="w-4 h-4" />}
+            <span>Actualiser</span>
+          </button>
+        </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Vue d'ensemble */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white/5 rounded-lg p-4">
             <div className="flex items-center space-x-2 mb-2">
-              <div className={`w-3 h-3 rounded-full ${formations.length > 0 ? 'bg-green-400' : 'bg-red-400'}`}></div>
-              <span className="text-white font-medium">API Learning</span>
+              <BarChart3 className="w-4 h-4 text-blue-400" />
+              <span className="text-white font-medium">Taux de Completion</span>
             </div>
-            <p className="text-gray-400 text-sm">
-              {formations.length > 0 ? 'Connecté et opérationnel' : 'Déconnecté ou en erreur'}
-            </p>
-            <p className="text-gray-500 text-xs mt-1">Base URL: {API_BASE_URL}</p>
+            <div className="text-2xl font-bold text-blue-400">{userStats.completionRate}%</div>
+            <p className="text-gray-400 text-xs">Formations terminées</p>
           </div>
 
           <div className="bg-white/5 rounded-lg p-4">
             <div className="flex items-center space-x-2 mb-2">
-              <Database className="w-4 h-4 text-purple-400" />
-              <span className="text-white font-medium">Formations Chargées</span>
+              <Trophy className="w-4 h-4 text-yellow-400" />
+              <span className="text-white font-medium">Badges Obtenus</span>
             </div>
-            <p className="text-gray-400 text-sm">{formations.length} formations disponibles</p>
-            <p className="text-gray-500 text-xs mt-1">
-              Dernière sync: {new Date().toLocaleTimeString('fr-FR')}
-            </p>
+            <div className="text-2xl font-bold text-yellow-400">{userStats.totalBadges}</div>
+            <p className="text-gray-400 text-xs">Total collectif</p>
           </div>
+
+          <div className="bg-white/5 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Star className="w-4 h-4 text-purple-400" />
+              <span className="text-white font-medium">Score Moyen</span>
+            </div>
+            <div className="text-2xl font-bold text-purple-400">{userStats.averageScore}%</div>
+            <p className="text-gray-400 text-xs">Tous utilisateurs</p>
+          </div>
+
+          <div className="bg-white/5 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Users className="w-4 h-4 text-green-400" />
+              <span className="text-white font-medium">Participation</span>
+            </div>
+            <div className="text-2xl font-bold text-green-400">
+              {userStats.totalUsers > 0 ? Math.round((userStats.activeUsers / userStats.totalUsers) * 100) : 0}%
+            </div>
+            <p className="text-gray-400 text-xs">Utilisateurs actifs</p>
+          </div>
+        </div>
+
+        {/* Filtres pour les utilisateurs */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Rechercher un utilisateur..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-3 w-full bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-base"
+            />
+          </div>
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 min-w-[200px] text-base"
+          >
+            {statusOptions.map(status => (
+              <option key={status.value} value={status.value} className="bg-slate-800">
+                {status.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Liste détaillée des utilisateurs */}
+        <div className="space-y-3">
+          <h4 className="text-lg font-semibold text-white mb-4">
+            Détail par Utilisateur ({getFilteredUsers().length})
+          </h4>
+          
+          {loading && !userProgresses.length ? (
+            <div className="flex items-center justify-center py-12">
+              <LoadingSpinner size="w-8 h-8" />
+              <span className="ml-3 text-gray-300">Chargement des données utilisateurs...</span>
+            </div>
+          ) : getFilteredUsers().length === 0 ? (
+            <div className="text-center py-12">
+              <UserX className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-400">
+                {userProgresses.length === 0 
+                  ? "Aucune donnée utilisateur disponible" 
+                  : "Aucun utilisateur trouvé pour les filtres actuels"
+                }
+              </p>
+              {campaignId && !campaignStats && (
+                <button
+                  onClick={loadCampaignStats}
+                  className="mt-4 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
+                >
+                  Charger les statistiques
+                </button>
+              )}
+            </div>
+          ) : (
+            getFilteredUsers().map(user => {
+              const userStatus = getUserStatus(user);
+              const statusColor = getStatusColor(userStatus);
+              const statusLabel = getStatusLabel(userStatus);
+
+              return (
+                <div key={user.email} className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
+                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <h5 className="text-white font-medium">{user.firstName} {user.lastName}</h5>
+                        <div className="flex items-center space-x-2 text-sm text-gray-400">
+                          <Mail className="w-3 h-3" />
+                          <span>{user.email}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right flex items-center space-x-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
+                        {statusLabel}
+                      </span>
+                      {user.lastActivity && (
+                        <div className="text-right">
+                          <div className="flex items-center space-x-1 text-xs text-gray-400">
+                            <Calendar className="w-3 h-3" />
+                            <span>
+                              Dernière activité: {new Date(user.lastActivity).toLocaleDateString('fr-FR')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Informations supplémentaires */}
+                  {(user.position || user.country || user.office) && (
+                    <div className="flex items-center space-x-4 mb-3 text-sm text-gray-400">
+                      {user.position && (
+                        <div className="flex items-center space-x-1">
+                          <Briefcase className="w-3 h-3" />
+                          <span>{user.position}</span>
+                        </div>
+                      )}
+                      {user.country && (
+                        <div className="flex items-center space-x-1">
+                          <MapPin className="w-3 h-3" />
+                          <span>{user.country}</span>
+                        </div>
+                      )}
+                      {user.office && (
+                        <div className="flex items-center space-x-1">
+                          <Target className="w-3 h-3" />
+                          <span>{user.office}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Métriques de progression */}
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-400">Formations</p>
+                      <p className="text-white font-medium">
+                        {user.totalFormationsCompleted || 0}/{user.formations?.length || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">En cours</p>
+                      <p className="text-yellow-400 font-medium">
+                        {(user.totalFormationsStarted || 0) - (user.totalFormationsCompleted || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Badges</p>
+                      <div className="flex items-center space-x-1">
+                        <Award className="w-3 h-3 text-yellow-400" />
+                        <span className="text-yellow-400 font-medium">{user.totalBadgesEarned || 0}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Score moyen</p>
+                      <p className={`font-medium ${
+                        (user.averageScore || 0) >= 80 
+                          ? 'text-green-400' 
+                          : (user.averageScore || 0) >= 60 
+                            ? 'text-yellow-400' 
+                            : 'text-red-400'
+                      }`}>
+                        {user.averageScore || 0}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Temps total</p>
+                      <p className="text-cyan-400 font-medium">
+                        {Math.round((user.totalTimeSpent || 0) / 60)} min
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Progression</p>
+                      <div className="w-full bg-white/10 rounded-full h-2 mt-1">
+                        <div 
+                          className="bg-gradient-to-r from-cyan-400 to-purple-500 h-2 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${(user.formations?.length || 0) > 0 
+                              ? ((user.totalFormationsCompleted || 0) / (user.formations?.length || 1)) * 100 
+                              : 0}%` 
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Détail des formations si disponible */}
+                  {user.formations && user.formations.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <p className="text-gray-400 text-sm mb-2">Formations assignées:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {user.formations.map((formation, index) => (
+                          <div
+                            key={formation.formationId || index}
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              formation.status === 'completed' 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : formation.status === 'in_progress'
+                                  ? 'bg-yellow-500/20 text-yellow-400'
+                                  : 'bg-gray-500/20 text-gray-400'
+                            }`}
+                          >
+                            {formation.formationTitle || `Formation ${index + 1}`}
+                            {formation.overallProgress > 0 && (
+                              <span className="ml-1">({formation.overallProgress}%)</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
@@ -648,6 +978,18 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
 
         default:
           return <div className="text-gray-400">Type de module non supporté: {currentModule.type}</div>;
+      }
+    };
+
+    const nextModule = () => {
+      if (currentModuleIndex < selectedFormationForLearning.modules.length - 1) {
+        setCurrentModuleIndex(prev => prev + 1);
+      }
+    };
+
+    const prevModule = () => {
+      if (currentModuleIndex > 0) {
+        setCurrentModuleIndex(prev => prev - 1);
       }
     };
 
@@ -743,7 +1085,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
         })}
         rows={12}
         type="textarea"
-        placeholder="Saisissez le contenu de votre module... Utilisez **gras** pour les titres et - pour les listes"
+        placeholder="Saisissez le contenu de votre module..."
       />
       <div className="grid grid-cols-2 gap-4">
         <ModuleInputField
@@ -761,7 +1103,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
             className="w-full px-4 py-3 text-base bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
           >
             {categories.filter(cat => cat.value !== 'all').map(category => (
-              <option key={category.value} value={category.value}>{category.label}</option>
+              <option key={category.value} value={category.value} className="bg-slate-800">{category.label}</option>
             ))}
           </select>
         </div>
@@ -814,7 +1156,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
             className="w-full px-4 py-3 text-base bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
           >
             {categories.filter(cat => cat.value !== 'all').map(category => (
-              <option key={category.value} value={category.value}>{category.label}</option>
+              <option key={category.value} value={category.value} className="bg-slate-800">{category.label}</option>
             ))}
           </select>
         </div>
@@ -1029,9 +1371,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
             ? `Quiz avec ${module.content?.questions?.length || 0} questions`
             : module.type === 'video'
               ? `Vidéo: ${module.content?.videoUrl?.substring(0, 50) || ''}${module.content?.videoUrl?.length > 50 ? '...' : ''}`
-              : module.type === 'simulation'
-                ? `Simulation: ${module.content?.scenario?.substring(0, 100) || ''}${module.content?.scenario?.length > 100 ? '...' : ''}`
-                : module.content?.text?.substring(0, 100) + (module.content?.text?.length > 100 ? '...' : '')
+              : module.content?.text?.substring(0, 100) + (module.content?.text?.length > 100 ? '...' : '')
           }
         </div>
 
@@ -1256,9 +1596,9 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
                   onChange={(e) => setNewFormationData({ ...newFormationData, difficulty: e.target.value })}
                   className="w-full px-4 py-3 text-base bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
                 >
-                  <option value="débutant">Débutant</option>
-                  <option value="intermédiaire">Intermédiaire</option>
-                  <option value="avancé">Avancé</option>
+                  <option value="débutant" className="bg-slate-800">Débutant</option>
+                  <option value="intermédiaire" className="bg-slate-800">Intermédiaire</option>
+                  <option value="avancé" className="bg-slate-800">Avancé</option>
                 </select>
               </div>
             </div>
@@ -1294,6 +1634,13 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
     );
   };
 
+  // Filter modules
+  const filteredModules = currentFormationModules.filter(module => {
+    const matchesSearch = module.title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || module.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
   // Main Render
   return (
     <div
@@ -1305,7 +1652,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
         <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => window.history.back()}
+              onClick={onBack}
               className="p-2 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-white/10"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -1314,7 +1661,9 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
                 Cybersécurité Interactive
               </h1>
-              <p className="text-gray-400 text-sm hidden sm:block">Formation et sensibilisation aux menaces numériques</p>
+              <p className="text-gray-400 text-sm hidden sm:block">
+                {campaignData?.name ? `Formation pour: ${campaignData.name}` : 'Formation et sensibilisation aux menaces numériques'}
+              </p>
             </div>
           </div>
 
@@ -1329,6 +1678,11 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
               >
                 Quitter la formation
               </button>
+            )}
+            {campaignId && (
+              <div className="px-3 py-1 bg-cyan-500/20 text-cyan-400 rounded-full text-sm">
+                Campagne ID: {campaignId}
+              </div>
             )}
             {loading && <LoadingSpinner className="text-cyan-400" />}
           </div>
@@ -1474,8 +1828,8 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
             </div>
           ) : activeTab === 'modules' ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {error && <ErrorAlert error={error} onDismiss={() => setError(null)} />}
-              {successMessage && <SuccessAlert message={successMessage} onDismiss={() => setSuccessMessage('')} />}
+              {error && <div className="lg:col-span-3"><ErrorAlert error={error} onDismiss={() => setError(null)} /></div>}
+              {successMessage && <div className="lg:col-span-3"><SuccessAlert message={successMessage} onDismiss={() => setSuccessMessage('')} /></div>}
 
               {/* Left Column */}
               <div className="lg:col-span-1 space-y-8">
@@ -1565,7 +1919,7 @@ export default function IntegratedLearningPlatform({ campaignId, onNext, onBack 
                         className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 min-w-[200px] text-base"
                       >
                         {categories.map(category => (
-                          <option key={category.value} value={category.value}>
+                          <option key={category.value} value={category.value} className="bg-slate-800">
                             {category.label}
                           </option>
                         ))}

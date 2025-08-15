@@ -1,3 +1,4 @@
+//src/api/campaigns.js
 import axios from 'axios';
 
 // Configuration unifiée de l'API

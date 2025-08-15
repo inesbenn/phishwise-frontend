@@ -1,9 +1,12 @@
 // src/api/learningApi.js
 import axios from 'axios';
 
-// Configuration de base
+// Configuration de base pour l'API
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+// =========================================================================================
+// Client API pour les requêtes NÉCESSITANT une authentification (avec token)
+// =========================================================================================
 const learningAPI = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -24,7 +27,7 @@ learningAPI.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Intercepteur pour gérer les erreurs
+// Intercepteur pour gérer les erreurs d'authentification (401)
 learningAPI.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -32,9 +35,32 @@ learningAPI.interceptors.response.use(
     
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      // Vérification de l'environnement pour éviter les erreurs côté serveur
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
     
+    return Promise.reject(error);
+  }
+);
+
+// =========================================================================================
+// Client API pour les requêtes qui NE NÉCESSITENT PAS de token d'authentification
+// =========================================================================================
+const publicLearningAPI = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Intercepteur d'erreur pour l'API publique
+publicLearningAPI.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('Public Learning API Error:', error);
     return Promise.reject(error);
   }
 );
@@ -43,10 +69,11 @@ learningAPI.interceptors.response.use(
 
 /**
  * Récupère toutes les formations
+ * Utilise le client PUBLIC qui ne nécessite pas de token.
  */
 export const getAllFormations = async () => {
   try {
-    const response = await learningAPI.get('/learning/formations');
+    const response = await publicLearningAPI.get('/learning/formations');
     return response.data;
   } catch (error) {
     console.error('Erreur lors de la récupération des formations:', error);
@@ -56,6 +83,7 @@ export const getAllFormations = async () => {
 
 /**
  * Crée une nouvelle formation
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {Object} formationData - Données de la formation
  */
 export const createFormation = async (formationData) => {
@@ -70,6 +98,7 @@ export const createFormation = async (formationData) => {
 
 /**
  * Met à jour une formation
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {string} formationId - ID de la formation
  * @param {Object} updates - Données à mettre à jour
  */
@@ -85,6 +114,7 @@ export const updateFormation = async (formationId, updates) => {
 
 /**
  * Supprime une formation
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {string} formationId - ID de la formation
  */
 export const deleteFormation = async (formationId) => {
@@ -99,6 +129,7 @@ export const deleteFormation = async (formationId) => {
 
 /**
  * Récupère une formation spécifique
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {string} formationId - ID de la formation
  */
 export const getFormation = async (formationId) => {
@@ -115,6 +146,7 @@ export const getFormation = async (formationId) => {
 
 /**
  * Assigne des formations à une campagne
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {string} campaignId - ID de la campagne
  * @param {Object} assignmentData - Données d'assignation
  */
@@ -130,6 +162,7 @@ export const assignFormationsToCampaign = async (campaignId, assignmentData) => 
 
 /**
  * Récupère les statistiques d'une campagne
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {string} campaignId - ID de la campagne
  */
 export const getCampaignStats = async (campaignId) => {
@@ -146,6 +179,7 @@ export const getCampaignStats = async (campaignId) => {
 
 /**
  * Récupère les formations d'une campagne pour un utilisateur
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {string} campaignId - ID de la campagne
  * @param {string} targetEmail - Email de l'utilisateur cible
  */
@@ -161,6 +195,7 @@ export const getCampaignFormations = async (campaignId, targetEmail) => {
 
 /**
  * Démarre une formation pour un utilisateur
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {Object} startData - Données pour démarrer la formation
  */
 export const startFormation = async (startData) => {
@@ -175,6 +210,7 @@ export const startFormation = async (startData) => {
 
 /**
  * Soumet le progrès d'un module
+ * Utilise le client SÉCURISÉ qui nécessite un token.
  * @param {Object} progressData - Données de progression du module
  */
 export const submitModuleProgress = async (progressData) => {
@@ -191,10 +227,11 @@ export const submitModuleProgress = async (progressData) => {
 
 /**
  * Test de connexion à l'API
+ * Utilise le client PUBLIC qui ne nécessite pas de token.
  */
 export const testLearningConnection = async () => {
   try {
-    const response = await learningAPI.get('/learning/formations');
+    const response = await publicLearningAPI.get('/learning/formations');
     return { success: true, data: response.data };
   } catch (error) {
     console.error('Test de connexion échoué:', error);
@@ -204,11 +241,13 @@ export const testLearningConnection = async () => {
 
 /**
  * Fonction helper pour créer une formation de test (développement uniquement)
+ * Utilise le client SÉCURISÉ qui nécessite un token.
+ * @param {Object} formationData - Données de la formation de test
  */
 export const createTestFormation = async (formationData) => {
   try {
     // Utilise la route temporaire sans authentification
-    const response = await learningAPI.post('/learning/formations/no-auth', formationData);
+    const response = await publicLearningAPI.post('/learning/formations/no-auth', formationData);
     return response.data;
   } catch (error) {
     console.error('Erreur lors de la création de la formation test:', error);
