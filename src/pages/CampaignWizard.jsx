@@ -10,8 +10,8 @@ import PhishWiseFinalValidation from '../components/PhishWiseFinalValidation';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-
-const TOTAL_STEPS = 7; 
+// ✅ 8 étapes au total (0 à 7)
+const TOTAL_STEPS = 8; 
 
 export default function CampaignWizard() {
   const [step, setStep] = useState(0);
@@ -20,7 +20,7 @@ export default function CampaignWizard() {
   // État pour sauvegarder les données de chaque étape
   const [step0Data, setStep0Data] = useState({});
   const [step1Data, setStep1Data] = useState({});
-  const [step2Data, setStep2Data] = useState({}); // Nouvelle ligne pour ModelMail
+  const [step2Data, setStep2Data] = useState({}); // Pour ModelMail
   const [step3Data, setStep3Data] = useState({}); // Pour LandingPage
   const [step4Data, setStep4Data] = useState({}); // Pour SMTP
   const [step5Data, setStep5Data] = useState({}); // Pour LearningPage
@@ -84,7 +84,7 @@ export default function CampaignWizard() {
       });
     }
 
-    // À l'étape 5, sauvegarder les données de formation
+    // ✅ À l'étape 5, sauvegarder les données de formation
     if (step === 5 && formData) {
       setStep5Data(formData);
       toast.success('Formation sauvegardée !', {
@@ -93,21 +93,26 @@ export default function CampaignWizard() {
       });
     }
 
-    // À l'étape 6, finaliser la campagne
-    if (step === 6 && formData) {
-      toast.success('Campagne finalisée avec succès !', {
-        position: 'top-center',
-        autoClose: 3000
-      });
-      // Ici vous pouvez ajouter la logique pour rediriger vers la liste des campagnes
-      // ou afficher un message de succès final
-    }
+    // ✅ À l'étape 6 (PhishWiseFinalValidation), pas de toast ici car c'est géré dans le composant
+    // Le lancement de la campagne sera géré par PhishWiseFinalValidation directement
 
+    // ✅ Passer à l'étape suivante (max étape 7 = index 6)
     setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
   };
 
   const handleBack = () => {
     setStep((s) => Math.max(s - 1, 0));
+  };
+
+  // ✅ Fonction pour gérer le lancement depuis PhishWiseFinalValidation
+  const handleLaunchCampaign = () => {
+    toast.success('Campagne lancée avec succès !', {
+      position: 'top-center',
+      autoClose: 5000
+    });
+    // Ici vous pouvez rediriger vers la liste des campagnes ou le dashboard
+    console.log('Campaign launched successfully!');
+    // Exemple: window.location.href = '/campaigns';
   };
 
   let CurrentStep;
@@ -121,7 +126,7 @@ export default function CampaignWizard() {
           campaignId={campaignId}
           onNext={handleNext}
           onBack={handleBack}
-          savedData={step1Data} // Passer les données sauvegardées
+          savedData={step1Data}
         />
       );
       break;
@@ -131,7 +136,7 @@ export default function CampaignWizard() {
           campaignId={campaignId}
           onNext={handleNext}
           onBack={handleBack}
-          savedData={step2Data} // Passer les données sauvegardées
+          savedData={step2Data}
         />
       );
       break;
@@ -141,7 +146,7 @@ export default function CampaignWizard() {
           campaignId={campaignId}
           onNext={handleNext}
           onBack={handleBack}
-          savedData={step3Data} // Passer les données sauvegardées
+          savedData={step3Data}
         />
       );
       break;
@@ -151,26 +156,28 @@ export default function CampaignWizard() {
           campaignId={campaignId}
           onNext={handleNext}
           onBack={handleBack}
-          savedData={step4Data} // Passer les données sauvegardées
+          savedData={step4Data}
         />
       );
       break;
+    // ✅ Étape 5 - LearningPage (Formation)
     case 5:
       CurrentStep = (
         <LearningPage
           campaignId={campaignId}
           onNext={handleNext}
           onBack={handleBack}
-          savedData={step5Data} // Passer les données sauvegardées
+          savedData={step5Data}
         />
       );
       break;
+    // ✅ Étape 6 - PhishWiseFinalValidation (Finalisation)
     case 6:
       CurrentStep = (
         <PhishWiseFinalValidation
           campaignId={campaignId}
-          onNext={handleNext}
-          onBack={handleBack}
+        onBack={handleBack}
+          onLaunch={handleLaunchCampaign}
           // Passer toutes les données des étapes précédentes
           allStepsData={{
             step0: step0Data,
