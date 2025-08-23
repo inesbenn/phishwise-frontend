@@ -559,7 +559,7 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
           {/* Main Content */}
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-10">
             {/* Section Header */}
-            <div className="flex items-center space-x-6 mb-10">
+            <div className="flex items-center space-x-6 mb-6">
               <div className="p-4 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-xl">
                 <Globe className="w-10 h-10 text-white" />
               </div>
@@ -568,6 +568,19 @@ const LandingPage = ({ campaignId, onNext, onBack, savedData = {} }) => {
                 <p className="text-lg text-gray-300">
                   Choisissez votre méthode de création de landing page
                 </p>
+              </div>
+            </div>
+
+            {/* Warning Message */}
+            <div className="mb-8 p-4 bg-orange-500/20 border border-orange-500/30 rounded-xl">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-6 h-6 text-orange-400 mt-1 flex-shrink-0" />
+                <div>
+                  <p className="text-orange-300 font-medium text-lg mb-1">⚠️ Attention :</p>
+                  <p className="text-orange-200 text-base leading-relaxed">
+                    Choisissez une page clonée qui correspond au contenu de votre modèle d'email pour assurer la cohérence de la campagne.
+                  </p>
+                </div>
               </div>
             </div>
 

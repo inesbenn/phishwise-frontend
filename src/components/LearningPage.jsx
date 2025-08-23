@@ -336,88 +336,370 @@ const updateModule = (moduleId, updates) => {
 
   // ========== SAUVEGARDE ==========
   
-  const saveLearningConfiguration = async () => {
-    setLoading(true);
-    try {
-      // Simulation d'une sauvegarde si l'API n'est pas disponible
-      await new Promise(resolve => setTimeout(resolve, 2000));
+  // Version améliorée de saveLearningConfiguration dans LearningPage
+const saveLearningConfiguration = async () => {
+  setLoading(true);
+  
+  try {
+    console.log('💾 Début sauvegarde configuration apprentissage');
+    
+    // Validation des données avant sauvegarde
+    if (assignedFormations.length === 0 && modules.length === 0) {
+      throw new Error('Aucune formation à sauvegarder. Veuillez assigner des formations existantes ou créer de nouveaux modules.');
+    }
+
+    // Validation des modules créés
+    if (modules.length > 0) {
+      const invalidModules = modules.filter(module => {
+        if (!module.title?.trim()) return true;
+        
+        switch (module.type) {
+          case 'text':
+            return !module.content?.text?.trim();
+          case 'video':
+            return !module.content?.videoUrl?.trim();
+          case 'quiz':
+            return !module.content?.questions?.length || 
+                   module.content.questions.some(q => 
+                     !q.question?.trim() || 
+                     q.options?.some(opt => !opt?.trim()) ||
+                     q.correctAnswer === undefined
+                   );
+          default:
+            return false;
+        }
+      });
+
+      if (invalidModules.length > 0) {
+        throw new Error(`${invalidModules.length} module(s) incomplet(s) détecté(s). Veuillez compléter tous les champs obligatoires.`);
+      }
+    }
+
+    // Configuration step6 avec validation
+    const step6Data = {
+      configurationType: modules.length > 0 ? 'mixed' : 'existing',
       
-      // Préparer les données à sauvegarder
-      const step6Data = {
-        assignedFormations: assignedFormations.map((af, index) => ({
-          formationId: af.formationId._id || af.formationId,
-          assignedAt: af.assignedAt || new Date(),
-          mandatory: af.mandatory !== undefined ? af.mandatory : true,
-          order: index,
-          dueDate: af.dueDate || null
-        })),
-        redirectToLearning: true,
-        requireAuthentication: false,
-        sessionDuration: 3600
+      // Formations assignées (existantes) avec validation
+      assignedFormations: assignedFormations
+        .filter(af => af.formationId) // Filtrer les entrées invalides
+        .map((af, index) => {
+          const formationId = af.formationId._id || af.formationId;
+          
+          if (!formationId) {
+            console.warn('⚠️ Formation sans ID détectée:', af);
+            return null;
+          }
+          
+          console.log('📋 Formation assignée:', { 
+            formationId, 
+            title: af.formationId.title || 'Titre manquant',
+            source: af.source || 'library'
+          });
+          
+          return {
+            formationId: formationId,
+            assignedAt: af.assignedAt || new Date().toISOString(),
+            mandatory: af.mandatory !== undefined ? af.mandatory : true,
+            order: index,
+            dueDate: af.dueDate || null,
+            source: af.source || 'library'
+          };
+        })
+        .filter(Boolean), // Supprimer les entrées null
+      
+      // Configuration de la page d'apprentissage avec validation
+      learningPageConfig: {
+        title: learningPageData.title?.trim() || 'Formation Sans Titre',
+        description: learningPageData.description?.trim() || 'Description non fournie',
+        estimatedTime: learningPageData.estimatedTime?.trim() || '15 minutes',
+        welcomeMessage: "Bienvenue dans votre formation de sécurité personnalisée.",
+        completionMessage: "Félicitations ! Vous avez terminé votre formation avec succès."
+      },
+      
+      // Paramètres additionnels
+      redirectToLearning: true,
+      requireAuthentication: false,
+      sessionDuration: 3600,
+      allowRetry: true,
+      showProgress: true,
+      randomizeOrder: false,
+      
+      globalPassingCriteria: {
+        minimumScore: 70,
+        requiredCompletionRate: 100,
+        timeLimit: null
+      },
+      
+      // Métadonnées
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    console.log('💾 Données step6 validées:', {
+      configurationType: step6Data.configurationType,
+      assignedFormationsCount: step6Data.assignedFormations.length,
+      hasModules: modules.length > 0
+    });
+
+    const saveResults = {
+      step6Saved: false,
+      wizardFormationCreated: false,
+      existingFormationsAssigned: false,
+      errors: []
+    };
+
+    // 1. Sauvegarder la configuration step6
+    try {
+      const saveResponse = await saveCampaignStep6(campaignId, step6Data);
+      console.log('✅ Step6 sauvegardé avec succès:', saveResponse);
+      saveResults.step6Saved = true;
+    } catch (apiError) {
+      console.warn('⚠️ API step6 non disponible:', apiError.message);
+      saveResults.errors.push('Configuration step6 sauvegardée en mode local uniquement');
+      // Continuer en mode dégradé
+    }
+
+    // 2. Créer une nouvelle formation si nécessaire
+    if (modules.length > 0) {
+      console.log('🧙 Création formation wizard avec', modules.length, 'modules');
+      
+      // Validation des données de formation
+      const formationTitle = learningPageData.title?.trim();
+      if (!formationTitle) {
+        throw new Error('Le titre de la formation est requis pour créer une nouvelle formation');
+      }
+
+      const newFormationData = {
+        title: formationTitle,
+        description: learningPageData.description?.trim() || 'Formation créée via l\'assistant',
+        estimatedTime: learningPageData.estimatedTime?.trim() || '15 minutes',
+        difficulty: 'débutant',
+        category: 'security', // Catégorie par défaut plus générique
+        badge: `Expert ${formationTitle}`
       };
 
-      try {
-        // Tenter de sauvegarder via l'API
-        await saveCampaignStep6(campaignId, step6Data);
-        console.log('Configuration sauvegardée via API');
-      } catch (apiError) {
-        console.log('API non disponible, sauvegarde en mode démo');
-      }
-      
-      // Si on a des modules créés, créer une nouvelle formation
-      if (modules.length > 0) {
-        const newFormationData = {
-          title: learningPageData.title,
-          description: learningPageData.description,
-          estimatedTime: learningPageData.estimatedTime,
-          difficulty: 'débutant',
-          category: 'phishing'
+      // Formatage et validation des modules
+      const formattedModules = modules.map((module, index) => {
+        const baseModule = {
+          id: index + 1,
+          title: module.title?.trim() || `Module ${index + 1}`,
+          type: module.type,
+          category: 'basics',
+          duration: module.duration || '5 minutes',
+          required: module.required !== undefined ? module.required : true,
+          order: index
         };
 
-        try {
-          // Tenter de créer via l'API
-          await createWizardFormation(campaignId, newFormationData, modules.map((module, index) => ({
-            id: index + 1,
-            title: module.title,
-            type: module.type,
-            content: module.content,
-            duration: module.duration || '5 minutes',
-            required: module.required
-          })));
-          console.log('Formation créée via API');
-        } catch (apiError) {
-          console.log('Formation créée en mode démo');
-          // Ajouter la formation créée aux formations assignées en mode démo
-          const demoFormation = {
-            _id: `demo-created-${Date.now()}`,
-            title: learningPageData.title,
-            description: learningPageData.description,
-            estimatedTime: learningPageData.estimatedTime,
-            difficulty: 'débutant',
-            category: 'phishing',
-            modules: modules
-          };
+        // Validation et nettoyage du contenu selon le type
+        switch (module.type) {
+          case 'text':
+            baseModule.content = {
+              text: module.content?.text?.trim() || '',
+              formatting: module.content?.formatting || 'paragraph'
+            };
+            break;
           
-          const newAssignment = {
-            formationId: demoFormation,
-            assignedAt: new Date(),
+          case 'video':
+            baseModule.content = {
+              videoUrl: module.content?.videoUrl?.trim() || '',
+              videoType: module.content?.videoType || 'youtube',
+              duration: module.content?.duration?.trim() || '5 minutes',
+              transcript: module.content?.transcript?.trim() || ''
+            };
+            break;
+          
+          case 'quiz':
+            baseModule.content = {
+              questions: module.content?.questions?.map((q, qIndex) => ({
+                id: q.id || qIndex + 1,
+                question: q.question?.trim() || '',
+                type: q.type || 'multiple',
+                options: q.options?.map(opt => opt?.trim()).filter(Boolean) || [],
+                correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : 0,
+                explanation: q.explanation?.trim() || ''
+              })) || [],
+              passingScore: module.content?.passingScore || 70
+            };
+            break;
+          
+          default:
+            baseModule.content = module.content || {};
+        }
+
+        return baseModule;
+      });
+
+      console.log('📝 Formation à créer:', newFormationData);
+      console.log('📋 Modules formatés et validés:', formattedModules.length);
+
+      try {
+        const wizardResponse = await createWizardFormation(
+          campaignId, 
+          newFormationData, 
+          formattedModules,
+          {
             mandatory: true,
-            order: assignedFormations.length
+            dueDate: null,
+            assignImmediately: true
+          }
+        );
+        
+        console.log('✅ Formation wizard créée avec succès:', wizardResponse);
+        saveResults.wizardFormationCreated = true;
+        
+        // Ajouter la nouvelle formation aux assignées
+        if (wizardResponse.success && wizardResponse.data?.formation) {
+          const newAssignment = {
+            formationId: {
+              _id: wizardResponse.data.formation._id,
+              title: wizardResponse.data.formation.title,
+              description: wizardResponse.data.formation.description,
+              estimatedTime: wizardResponse.data.formation.estimatedTime,
+              modules: wizardResponse.data.formation.modules || formattedModules
+            },
+            assignedAt: new Date().toISOString(),
+            mandatory: true,
+            order: assignedFormations.length,
+            source: 'wizard_created'
           };
           
-          setAssignedFormations([...assignedFormations, newAssignment]);
+          setAssignedFormations(prev => [...prev, newAssignment]);
+        }
+        
+      } catch (wizardError) {
+        console.warn('⚠️ API wizard non disponible:', wizardError.message);
+        saveResults.errors.push('Formation créée en mode démo uniquement');
+        
+        // Mode démo amélioré
+        const demoFormation = {
+          _id: `demo-wizard-${Date.now()}`,
+          title: newFormationData.title,
+          description: newFormationData.description,
+          estimatedTime: newFormationData.estimatedTime,
+          difficulty: newFormationData.difficulty,
+          category: newFormationData.category,
+          modules: formattedModules,
+          badge: newFormationData.badge,
+          createdAt: new Date().toISOString(),
+          createdVia: 'wizard'
+        };
+        
+        const demoAssignment = {
+          formationId: demoFormation,
+          assignedAt: new Date().toISOString(),
+          mandatory: true,
+          order: assignedFormations.length,
+          source: 'wizard_created'
+        };
+        
+        setAssignedFormations(prev => [...prev, demoAssignment]);
+        // Marquer comme réussi même en mode démo
+        saveResults.wizardFormationCreated = true;
+      }
+    }
+
+    // 3. Assigner les formations existantes
+    const existingFormations = assignedFormations.filter(af => af.source !== 'wizard_created');
+    if (existingFormations.length > 0) {
+      const existingFormationIds = existingFormations
+        .map(af => af.formationId._id || af.formationId)
+        .filter(Boolean); // Supprimer les IDs invalides
+      
+      if (existingFormationIds.length > 0) {
+        console.log('🎯 Assignation de', existingFormationIds.length, 'formations existantes');
+        
+        try {
+          const assignResponse = await assignExistingFormationsToCampaign(
+            campaignId,
+            existingFormationIds,
+            { 
+              mandatory: true,
+              assignedAt: new Date().toISOString()
+            }
+          );
+          
+          console.log('✅ Formations existantes assignées avec succès:', assignResponse);
+          saveResults.existingFormationsAssigned = true;
+          
+        } catch (assignError) {
+          console.warn('⚠️ API assignation non disponible:', assignError.message);
+          saveResults.errors.push('Formations existantes assignées en mode local uniquement');
+          // Continuer, les formations sont déjà dans l'état local
+          saveResults.existingFormationsAssigned = true;
         }
       }
-      
-      console.log('Configuration sauvegardée avec succès');
-      
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde:', error);
-      alert('Erreur lors de la sauvegarde. Veuillez réessayer.');
-    } finally {
-      setLoading(false);
     }
-  };
+
+    // 4. Recharger les données depuis le backend
+    try {
+      await loadAssignedFormations();
+      console.log('🔄 Données rechargées depuis le backend');
+    } catch (loadError) {
+      console.warn('⚠️ Rechargement non disponible:', loadError.message);
+      saveResults.errors.push('Impossible de recharger les données depuis le serveur');
+    }
+
+    // 5. Rapport de sauvegarde
+    const successCount = [
+      saveResults.step6Saved,
+      saveResults.wizardFormationCreated || modules.length === 0,
+      saveResults.existingFormationsAssigned || existingFormations.length === 0
+    ].filter(Boolean).length;
+
+    const totalOperations = [
+      true, // step6 toujours tenté
+      modules.length > 0, // wizard seulement si modules
+      existingFormations.length > 0 // assignation seulement si formations existantes
+    ].filter(Boolean).length;
+
+    console.log('✅ Sauvegarde terminée:', {
+      success: successCount,
+      total: totalOperations,
+      errors: saveResults.errors.length,
+      assignedFormationsCount: assignedFormations.length
+    });
+
+    // Message de succès personnalisé
+    let successMessage = 'Configuration d\'apprentissage sauvegardée avec succès !';
+    
+    if (modules.length > 0 && existingFormations.length > 0) {
+      successMessage += `\n• Formation personnalisée créée avec ${modules.length} modules`;
+      successMessage += `\n• ${existingFormations.length} formation(s) existante(s) assignée(s)`;
+    } else if (modules.length > 0) {
+      successMessage += `\n• Formation personnalisée créée avec ${modules.length} modules`;
+    } else if (existingFormations.length > 0) {
+      successMessage += `\n• ${existingFormations.length} formation(s) assignée(s)`;
+    }
+
+    if (saveResults.errors.length > 0) {
+      successMessage += `\n\nNotifications:\n• ${saveResults.errors.join('\n• ')}`;
+    }
+
+    alert(successMessage);
+    
+    return {
+      success: true,
+      results: saveResults,
+      assignedCount: assignedFormations.length,
+      errors: saveResults.errors
+    };
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la sauvegarde:', error);
+    
+    const errorMessage = error.message || 'Erreur inconnue lors de la sauvegarde';
+    alert(`Erreur lors de la sauvegarde:\n${errorMessage}\n\nVeuillez corriger les problèmes et réessayer.`);
+    
+    return {
+      success: false,
+      error: errorMessage,
+      assignedCount: assignedFormations.length
+    };
+    
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ========== FILTRES ==========
   

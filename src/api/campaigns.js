@@ -203,3 +203,69 @@ export function revalidateCampaignDNS(campaignId) {
 export function testConnection() {
   return API.get('/health').then(res => res.data);
 }
+// src/api/campaigns.js - Ajout des nouvelles fonctions pour le step6
+
+// Fonction pour sauvegarder les données du step6 (formations assignées)
+export function saveCampaignStep6(campaignId, step6Data) {
+  console.log('💾 Sauvegarde step6 pour campagne:', campaignId);
+  console.log('💾 Données step6:', step6Data);
+  
+  return API.put(`/campaigns/${campaignId}/step/6`, step6Data).then(res => {
+    console.log('✅ Step6 sauvegardé avec succès:', res.data);
+    return res.data;
+  }).catch(error => {
+    console.error('❌ Erreur sauvegarde step6:', error);
+    throw error;
+  });
+}
+
+// Fonction pour récupérer les données du step6
+export function getCampaignStep6(campaignId) {
+  console.log('📖 Récupération step6 pour campagne:', campaignId);
+  
+  return API.get(`/campaigns/${campaignId}/step6`).then(res => {
+    console.log('✅ Step6 récupéré:', res.data);
+    return res.data;
+  }).catch(error => {
+    console.error('❌ Erreur récupération step6:', error);
+    throw error;
+  });
+}
+
+// Fonction pour assigner des formations existantes à une campagne
+export function assignExistingFormationsToCampaign(campaignId, formationIds, options = {}) {
+  console.log('🎯 Assignation formations existantes:', { campaignId, formationIds, options });
+  
+  return API.post(`/campaigns/${campaignId}/assign-existing-formations`, {
+    formationIds,
+    mandatory: options.mandatory !== undefined ? options.mandatory : true,
+    dueDate: options.dueDate || null,
+    order: options.order || 0
+  }).then(res => {
+    console.log('✅ Formations existantes assignées:', res.data);
+    return res.data;
+  }).catch(error => {
+    console.error('❌ Erreur assignation formations:', error);
+    throw error;
+  });
+}
+
+// Fonction pour créer une formation via le wizard et l'assigner
+export function createWizardFormation(campaignId, formationData, modules, assignmentOptions = {}) {
+  console.log('🧙 Création formation wizard:', { campaignId, formationData, modules, assignmentOptions });
+  
+  return API.post(`/campaigns/${campaignId}/create-wizard-formation`, {
+    formationData,
+    modules,
+    assignmentOptions: {
+      mandatory: assignmentOptions.mandatory !== undefined ? assignmentOptions.mandatory : true,
+      dueDate: assignmentOptions.dueDate || null
+    }
+  }).then(res => {
+    console.log('✅ Formation wizard créée et assignée:', res.data);
+    return res.data;
+  }).catch(error => {
+    console.error('❌ Erreur création formation wizard:', error);
+    throw error;
+  });
+}

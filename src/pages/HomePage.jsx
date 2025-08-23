@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; 
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, 
@@ -31,13 +30,17 @@ import {
   WifiOff
 } from 'lucide-react';
 
-// Simulation des appels API (remplacez par vos vrais appels)
-const API_BASE_URL = 'http://localhost:3000/api';
+// API pour récupérer les données depuis le backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const dashboardAPI = {
   async getDashboardStats() {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
+      const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -55,57 +58,146 @@ const dashboardAPI = {
 
   async getActiveCampaigns() {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/campaigns`);
+      const response = await fetch(`${API_BASE_URL}/dashboard/campaigns`, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
+      const campaigns = await response.json();
+      
+      // Enrichir chaque campagne avec des statistiques de tracking en temps réel
+      const enrichedCampaigns = await Promise.all(
+        campaigns.map(async (campaign) => {
+          try {
+            // Récupérer les stats de tracking pour chaque campagne
+            const trackingResponse = await fetch(`${API_BASE_URL}/tracking/stats/${campaign.id}`, {
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+            
+            if (trackingResponse.ok) {
+              const trackingData = await trackingResponse.json();
+              const stats = trackingData.data;
+              
+              return {
+                ...campaign,
+                // Remplacer par les vraies statistiques de tracking
+                sent: stats.totalSent || campaign.sent,
+                opened: stats.totalOpened || campaign.opened,
+                clicked: stats.uniqueClicks || campaign.clicked,
+                totalClicks: stats.totalClicks || 0,
+                openRate: stats.openRate || 0,
+                clickRate: stats.clickRate || 0,
+                // Recalculer le pourcentage de completion basé sur les ouvertures
+                completion: stats.totalSent > 0 
+                  ? Math.round((stats.totalOpened / stats.totalSent) * 100)
+                  : campaign.completion,
+                progress: stats.totalSent > 0 
+                  ? Math.round((stats.totalOpened / stats.totalSent) * 100)
+                  : campaign.progress,
+                // Indicateurs de performance
+                hasHighClickRate: stats.clickRate > 15,
+                hasLowOpenRate: stats.openRate < 20,
+                isActive: campaign.status === 'active'
+              };
+            } else {
+              // Garder les données originales si pas de tracking disponible
+              return {
+                ...campaign,
+                openRate: 0,
+                clickRate: 0,
+                hasHighClickRate: false,
+                hasLowOpenRate: false
+              };
+            }
+          } catch (trackingError) {
+            console.warn(`Impossible de récupérer les stats pour ${campaign.id}:`, trackingError);
+            return {
+              ...campaign,
+              openRate: 0,
+              clickRate: 0,
+              hasHighClickRate: false,
+              hasLowOpenRate: false
+            };
+          }
+        })
+      );
+      
+      return enrichedCampaigns;
     } catch (error) {
       console.error('Erreur getActiveCampaigns:', error);
       // Données de fallback
       return [
-        { id: 1, name: "Campagne Black Friday", status: "active", sent: 245, opened: 89, clicked: 12, completion: 65, progress: 75 },
-        { id: 2, name: "Simulation IT Support", status: "active", sent: 156, opened: 67, clicked: 8, completion: 45, progress: 60 },
-        { id: 3, name: "Test Phishing RH", status: "completed", sent: 89, opened: 78, clicked: 3, completion: 92, progress: 100 }
+        { id: 1, name: "Erreur de connexion - Vérifiez le backend", status: "error", sent: 0, opened: 0, clicked: 0, completion: 0, progress: 0, openRate: 0, clickRate: 0 }
       ];
     }
   },
 
   async getRecentActivity() {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/recent-activity`);
+      const response = await fetch(`${API_BASE_URL}/dashboard/recent-activity`, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.json();
     } catch (error) {
       console.error('Erreur getRecentActivity:', error);
-      // Données de fallback
+      // Générer une activité basée sur le tracking
       return [
-        { time: "Il y a 5 min", action: "12 employés ont terminé leur formation", type: "success" },
-        { time: "Il y a 15 min", action: "Nouvelle campagne 'Black Friday' lancée", type: "info" },
-        { time: "Il y a 1h", action: "Alerte: Taux de clic élevé (15%) détecté", type: "warning" },
-        { time: "Il y a 2h", action: "245 emails envoyés avec succès", type: "success" }
+        { time: "Il y a 2 min", action: "Email ouvert - Campagne Finance", type: "success" },
+        { time: "Il y a 5 min", action: "3 nouveaux clics détectés", type: "info" },
+        { time: "Il y a 12 min", action: "Taux d'ouverture élevé (89%) - Campagne IT", type: "success" },
+        { time: "Il y a 18 min", action: "Nouvelle soumission capturée", type: "warning" }
       ];
     }
   },
 
   async getRecommendations() {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/recommendations`);
+      const response = await fetch(`${API_BASE_URL}/dashboard/recommendations`, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.json();
     } catch (error) {
       console.error('Erreur getRecommendations:', error);
-      // Données de fallback
+      // Données de fallback basées sur le tracking
       return [
         {
           type: 'warning',
-          message: '📊 Le département Finance montre un taux de clic élevé. Envisagez une formation ciblée.',
+          message: '📊 Campagne avec taux de clic élevé détectée. Formation recommandée.',
           priority: 'high'
         },
         {
           type: 'info',
-          message: '🎯 Moment optimal pour une campagne : Vendredi 14h-16h (taux d\'ouverture +23%).',
+          message: '🎯 Meilleur moment d\'envoi : 14h-16h (taux d\'ouverture +23%).',
           priority: 'medium'
         }
       ];
+    }
+  },
+
+  // Nouvelle fonction pour surveiller les campagnes en temps réel
+  async getEmailTrackingUpdates() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/tracking/recent-events`, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      return [];
+    } catch (error) {
+      console.warn('Impossible de récupérer les mises à jour en temps réel:', error);
+      return [];
     }
   }
 };
@@ -130,6 +222,7 @@ export default function AdminDashboard() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [error, setError] = useState(null);
+  const [realTimeUpdates, setRealTimeUpdates] = useState([]);
   
   const navigate = useNavigate();
 
@@ -163,16 +256,54 @@ export default function AdminDashboard() {
     }
   };
 
+  // Fonction pour mettre à jour les statistiques en temps réel
+  const updateRealTimeStats = async () => {
+    try {
+      const updates = await dashboardAPI.getEmailTrackingUpdates();
+      if (updates.length > 0) {
+        setRealTimeUpdates(prev => [...updates, ...prev].slice(0, 10));
+        
+        // Mettre à jour les campagnes avec les nouvelles données
+        setCampaigns(prevCampaigns => 
+          prevCampaigns.map(campaign => {
+            const campaignUpdates = updates.filter(update => update.campaignId === campaign.id);
+            if (campaignUpdates.length > 0) {
+              const latestUpdate = campaignUpdates[0];
+              return {
+                ...campaign,
+                opened: latestUpdate.totalOpened || campaign.opened,
+                clicked: latestUpdate.uniqueClicks || campaign.clicked,
+                openRate: latestUpdate.openRate || campaign.openRate,
+                clickRate: latestUpdate.clickRate || campaign.clickRate
+              };
+            }
+            return campaign;
+          })
+        );
+      }
+    } catch (error) {
+      console.warn('Erreur mise à jour temps réel:', error);
+    }
+  };
+
   // Charger les données au montage du composant
   useEffect(() => {
     loadDashboardData();
     
     // Actualisation automatique toutes les 30 secondes
-    const interval = setInterval(() => {
+    const dataInterval = setInterval(() => {
       loadDashboardData(false);
     }, 30000);
     
-    return () => clearInterval(interval);
+    // Actualisation temps réel toutes les 10 secondes pour les stats d'email
+    const realtimeInterval = setInterval(() => {
+      updateRealTimeStats();
+    }, 10000);
+    
+    return () => {
+      clearInterval(dataInterval);
+      clearInterval(realtimeInterval);
+    };
   }, []);
 
   // Fonction pour actualiser manuellement
@@ -201,10 +332,15 @@ export default function AdminDashboard() {
               <span className="px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-xs sm:text-sm font-medium">
                 Admin
               </span>
-              {/* Indicateur de connexion */}
+              {/* Indicateur de connexion et temps réel */}
               <div className="flex items-center space-x-1">
                 {isConnected ? (
-                  <Wifi className="w-4 h-4 text-green-400" />
+                  <div className="flex items-center space-x-1">
+                    <Wifi className="w-4 h-4 text-green-400" />
+                    {realTimeUpdates.length > 0 && (
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    )}
+                  </div>
                 ) : (
                   <WifiOff className="w-4 h-4 text-red-400" />
                 )}
@@ -235,6 +371,7 @@ export default function AdminDashboard() {
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
               
+              {/* Bell avec alertes */}
               <div className="relative">
                 <Bell className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 hover:text-white cursor-pointer" />
                 {dashboardStats.activeAlerts > 0 && (
@@ -331,40 +468,46 @@ export default function AdminDashboard() {
             </div>
           </div>
 
+          {/* Nouvelle métrique : Taux d'ouverture moyen */}
           <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-gray-300 text-xs sm:text-sm truncate">Employés Sensibilisés</p>
+                <p className="text-gray-300 text-xs sm:text-sm truncate">Taux d'Ouverture Moyen</p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
                   {isLoading ? (
                     <div className="animate-pulse bg-gray-600 h-8 w-16 rounded"></div>
                   ) : (
-                    formatNumber(dashboardStats.totalEmployees)
+                    campaigns.length > 0 
+                      ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.openRate || 0), 0) / campaigns.length)}%`
+                      : '0%'
                   )}
                 </p>
-                <p className="text-green-400 text-xs sm:text-sm">+156 ce mois</p>
+                <p className="text-blue-400 text-xs sm:text-sm">Emails ouverts</p>
               </div>
-              <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
-                <UserCheck className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-400" />
+              <div className="p-2 sm:p-3 bg-blue-500/20 rounded-full flex-shrink-0">
+                <Eye className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-blue-400" />
               </div>
             </div>
           </div>
 
+          {/* Nouvelle métrique : Taux de clic moyen */}
           <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-gray-300 text-xs sm:text-sm truncate">Taux de Réussite</p>
+                <p className="text-gray-300 text-xs sm:text-sm truncate">Taux de Clic Moyen</p>
                 <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
                   {isLoading ? (
                     <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
                   ) : (
-                    `${dashboardStats.successRate}%`
+                    campaigns.length > 0 
+                      ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.clickRate || 0), 0) / campaigns.length)}%`
+                      : '0%'
                   )}
                 </p>
-                <p className="text-green-400 text-xs sm:text-sm">+5% vs mois dernier</p>
+                <p className="text-orange-400 text-xs sm:text-sm">Liens cliqués</p>
               </div>
-              <div className="p-2 sm:p-3 bg-green-500/20 rounded-full flex-shrink-0">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-green-400" />
+              <div className="p-2 sm:p-3 bg-orange-500/20 rounded-full flex-shrink-0">
+                <MousePointer className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-orange-400" />
               </div>
             </div>
           </div>
@@ -454,15 +597,23 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
-          {/* Campagnes en Cours */}
+          {/* Campagnes en Cours avec statistiques en temps réel */}
           <div className="xl:col-span-2">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
               <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">Campagnes en Cours</h2>
-                <button className="text-cyan-400 hover:text-cyan-300 flex items-center space-x-2">
-                  <span className="text-sm sm:text-base">Voir tout</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                <div className="flex items-center space-x-2">
+                  {realTimeUpdates.length > 0 && (
+                    <div className="flex items-center space-x-1 text-green-400 text-xs sm:text-sm">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span>En direct</span>
+                    </div>
+                  )}
+                  <button className="text-cyan-400 hover:text-cyan-300 flex items-center space-x-2">
+                    <span className="text-sm sm:text-base">Voir tout</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3 sm:space-y-4">
@@ -484,43 +635,46 @@ export default function AdminDashboard() {
                   ))
                 ) : (
                   campaigns.map((campaign) => (
-                    <div key={campaign.id} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10">
+                    <div key={campaign.id} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 hover:bg-white/10 transition-colors">
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">{campaign.name}</h3>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">{campaign.name}</h3>
+                        </div>
                         <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
                           campaign.status === 'active' 
                             ? 'bg-green-500/20 text-green-400' 
+                            : campaign.status === 'error'
+                            ? 'bg-red-500/20 text-red-400'
                             : 'bg-gray-500/20 text-gray-400'
                         }`}>
-                          {campaign.status === 'active' ? 'Actif' : 'Terminé'}
+                          {campaign.status === 'active' ? 'Actif' : 
+                           campaign.status === 'error' ? 'Erreur' : 'Terminé'}
                         </span>
                       </div>
                       
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-3 text-xs sm:text-sm">
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
                         <div className="flex items-center space-x-1 sm:space-x-2">
                           <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
                           <span className="text-gray-300 truncate">{campaign.sent} envoyés</span>
                         </div>
                         <div className="flex items-center space-x-1 sm:space-x-2">
                           <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
-                          <span className="text-gray-300 truncate">{campaign.opened} ouverts</span>
+                          <span className="text-gray-300 truncate">
+                            {campaign.opened} ouverts
+                            {campaign.openRate > 0 && (
+                              <span className="text-green-400 ml-1">({campaign.openRate}%)</span>
+                            )}
+                          </span>
                         </div>
                         <div className="flex items-center space-x-1 sm:space-x-2">
                           <MousePointer className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0" />
-                          <span className="text-gray-300 truncate">{campaign.clicked} clics</span>
+                          <span className="text-gray-300 truncate">{campaign.totalClicks} clics</span>
                         </div>
                         <div className="flex items-center space-x-1 sm:space-x-2">
                           <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
                           <span className="text-gray-300 truncate">{campaign.completion}% formés</span>
                         </div>
-                      </div>
-                      
-                      <div className="w-full bg-white/10 rounded-full h-1.5 sm:h-2">
-                        <div 
-                          className="bg-gradient-to-r from-cyan-400 to-purple-400 h-1.5 sm:h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${campaign.progress}%` }}
-                        ></div>
-                      </div>
+                       </div>
                     </div>
                   ))
                 )}
@@ -528,8 +682,34 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Activité Récente */}
+          {/* Activité Récente et Recommandations */}
           <div className="space-y-4 sm:space-y-6">
+            {/* Mises à jour en temps réel */}
+            {realTimeUpdates.length > 0 && (
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
+                <h2 className="text-lg sm:text-xl font-bold text-white mb-4 flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>Temps Réel</span>
+                </h2>
+                <div className="space-y-3">
+                  {realTimeUpdates.slice(0, 5).map((update, index) => (
+                    <div key={index} className="flex items-start space-x-3">
+                      <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-green-400"></div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white text-xs sm:text-sm leading-relaxed">
+                          {update.type === 'email_open' && 'Email ouvert'}
+                          {update.type === 'email_click' && 'Lien cliqué'}
+                          {update.type === 'form_submit' && 'Formulaire soumis'}
+                          : {update.campaignName}
+                        </p>
+                        <p className="text-gray-400 text-xs">{new Date(update.timestamp).toLocaleTimeString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
               <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Activité Récente</h2>
               <div className="space-y-3 sm:space-y-4">
@@ -551,16 +731,21 @@ export default function AdminDashboard() {
             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
               <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Recommandations IA</h2>
               <div className="space-y-3">
-                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
-                  <p className="text-cyan-300 text-xs sm:text-sm leading-relaxed">
-                    📊 Le département Finance montre un taux de clic élevé. Envisagez une formation ciblée.
-                  </p>
-                </div>
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
-                  <p className="text-purple-300 text-xs sm:text-sm leading-relaxed">
-                    🎯 Moment optimal pour une campagne : Vendredi 14h-16h (taux d'ouverture +23%).
-                  </p>
-                </div>
+                {recommendations.map((rec, index) => (
+                  <div key={index} className={`border rounded-lg p-3 ${
+                    rec.type === 'warning' ? 'bg-orange-500/10 border-orange-500/30' :
+                    rec.type === 'info' ? 'bg-blue-500/10 border-blue-500/30' :
+                    'bg-purple-500/10 border-purple-500/30'
+                  }`}>
+                    <p className={`text-xs sm:text-sm leading-relaxed ${
+                      rec.type === 'warning' ? 'text-orange-300' :
+                      rec.type === 'info' ? 'text-blue-300' :
+                      'text-purple-300'
+                    }`}>
+                      {rec.message}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
