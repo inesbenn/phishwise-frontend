@@ -5,6 +5,7 @@ import UsersPage from './pages/UsersPage';
 import CampaignWizard from './pages/CampaignWizard';
 import LearningPagesManagement from './pages/LearningPagesManagement';
 import TrainingView from './pages/TrainingView';
+import Analytics from './pages/Analytics'; 
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/campaign-wizard" element={<CampaignWizard />} />
         <Route path="/learning-pages" element={<LearningPagesManagement />} />
         <Route path="/training/:campaignId" element={<TrainingView />} />
+        <Route path="/analytics" element={<Analytics />} /> 
 
         {/* Ajoutez d'autres routes ici si nécessaire */}
 

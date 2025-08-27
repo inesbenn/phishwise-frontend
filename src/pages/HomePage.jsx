@@ -4,8 +4,7 @@ import {
   Shield, 
   Users, 
   Mail, 
-  TrendingUp, 
-  AlertTriangle, 
+  TrendingUp,  
   Plus, 
   BarChart3, 
   Settings, 
@@ -50,8 +49,7 @@ const dashboardAPI = {
         activeCampaigns: 8,
         newCampaignsThisMonth: 2,
         totalEmployees: 1247,
-        successRate: 87,
-        activeAlerts: 3
+        successRate: 87
       };
     }
   },
@@ -100,7 +98,9 @@ const dashboardAPI = {
                 // Indicateurs de performance
                 hasHighClickRate: stats.clickRate > 15,
                 hasLowOpenRate: stats.openRate < 20,
-                isActive: campaign.status === 'active'
+                isActive: campaign.status === 'active',
+                // Date de création formatée
+                createdDate: campaign.createdAt || campaign.startDate || new Date().toISOString()
               };
             } else {
               // Garder les données originales si pas de tracking disponible
@@ -109,7 +109,8 @@ const dashboardAPI = {
                 openRate: 0,
                 clickRate: 0,
                 hasHighClickRate: false,
-                hasLowOpenRate: false
+                hasLowOpenRate: false,
+                createdDate: campaign.createdAt || campaign.startDate || new Date().toISOString()
               };
             }
           } catch (trackingError) {
@@ -119,7 +120,8 @@ const dashboardAPI = {
               openRate: 0,
               clickRate: 0,
               hasHighClickRate: false,
-              hasLowOpenRate: false
+              hasLowOpenRate: false,
+              createdDate: campaign.createdAt || campaign.startDate || new Date().toISOString()
             };
           }
         })
@@ -130,7 +132,7 @@ const dashboardAPI = {
       console.error('Erreur getActiveCampaigns:', error);
       // Données de fallback
       return [
-        { id: 1, name: "Erreur de connexion - Vérifiez le backend", status: "error", sent: 0, opened: 0, clicked: 0, completion: 0, progress: 0, openRate: 0, clickRate: 0 }
+        { id: 1, name: "Erreur de connexion - Vérifiez le backend", status: "error", sent: 0, opened: 0, clicked: 0, completion: 0, progress: 0, openRate: 0, clickRate: 0, createdDate: new Date().toISOString() }
       ];
     }
   },
@@ -154,34 +156,7 @@ const dashboardAPI = {
         { time: "Il y a 18 min", action: "Nouvelle soumission capturée", type: "warning" }
       ];
     }
-  },
-
-  async getRecommendations() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/recommendations`, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Erreur getRecommendations:', error);
-      // Données de fallback basées sur le tracking
-      return [
-        {
-          type: 'warning',
-          message: '📊 Campagne avec taux de clic élevé détectée. Formation recommandée.',
-          priority: 'high'
-        },
-        {
-          type: 'info',
-          message: '🎯 Meilleur moment d\'envoi : 14h-16h (taux d\'ouverture +23%).',
-          priority: 'medium'
-        }
-      ];
-    }
-  },
+  }, 
 
   // Nouvelle fonction pour surveiller les campagnes en temps réel
   async getEmailTrackingUpdates() {
@@ -208,13 +183,11 @@ export default function AdminDashboard() {
     activeCampaigns: 0,
     newCampaignsThisMonth: 0,
     totalEmployees: 0,
-    successRate: 0,
-    activeAlerts: 0
+    successRate: 0
   });
   
   const [campaigns, setCampaigns] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]); 
   
   // États pour l'interface
   const [isLoading, setIsLoading] = useState(true);
@@ -233,17 +206,15 @@ export default function AdminDashboard() {
     
     try {
       // Charger toutes les données en parallèle
-      const [stats, campaignsData, activity, recs] = await Promise.all([
+      const [stats, campaignsData, activity] = await Promise.all([
         dashboardAPI.getDashboardStats(),
         dashboardAPI.getActiveCampaigns(),
-        dashboardAPI.getRecentActivity(),
-        dashboardAPI.getRecommendations()
+        dashboardAPI.getRecentActivity()
       ]);
 
       setDashboardStats(stats);
       setCampaigns(campaignsData);
-      setRecentActivity(activity);
-      setRecommendations(recs);
+      setRecentActivity(activity); 
       setIsConnected(true);
       setLastRefresh(new Date());
       
@@ -319,10 +290,15 @@ export default function AdminDashboard() {
     return num.toString();
   };
 
+  // Fonction pour formater la date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('fr-FR');
+  };
+
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-x-hidden">
+    <div className="min-h-screen w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
       {/* Header */}
-      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 w-full">
+      <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 w-full flex-shrink-0">
         <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 sm:space-x-4">
@@ -369,17 +345,8 @@ export default function AdminDashboard() {
                 title="Actualiser"
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-              
-              {/* Bell avec alertes */}
-              <div className="relative">
-                <Bell className="w-5 h-5 lg:w-6 lg:h-6 text-gray-300 hover:text-white cursor-pointer" />
-                {dashboardStats.activeAlerts > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 lg:w-5 lg:h-5 flex items-center justify-center">
-                    {dashboardStats.activeAlerts}
-                  </span>
-                )}
-              </div>
+              </button>  
+            
               <div className="w-7 h-7 lg:w-8 lg:h-8 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">
                 A
               </div>
@@ -393,15 +360,7 @@ export default function AdminDashboard() {
                 className="p-2 text-gray-300 hover:text-white disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-              <div className="relative">
-                <Bell className="w-5 h-5 text-gray-300 hover:text-white cursor-pointer" />
-                {dashboardStats.activeAlerts > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                    {dashboardStats.activeAlerts}
-                  </span>
-                )}
-              </div>
+              </button> 
               <button 
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="p-2 text-gray-300 hover:text-white"
@@ -433,324 +392,292 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
-        {/* Message d'erreur */}
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6 flex items-center space-x-3">
-            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
-            <div>
-              <p className="text-red-300 font-medium">Erreur de connexion</p>
-              <p className="text-red-200 text-sm">{error}</p>
+      {/* Contenu principal avec scroll */}
+      <main className="flex-1 w-full">
+        <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+          {/* Message d'erreur */}
+          {error && ( 
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6 flex items-center space-x-3"> 
+              <div>
+                <p className="text-red-300 font-medium">Erreur de connexion</p>
+                <p className="text-red-200 text-sm">{error}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Métriques Clés */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-gray-300 text-xs sm:text-sm truncate">Campagnes Actives</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
-                  {isLoading ? (
-                    <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
-                  ) : (
-                    dashboardStats.activeCampaigns
-                  )}
-                </p>
-                <p className="text-green-400 text-xs sm:text-sm">
-                  +{dashboardStats.newCampaignsThisMonth} ce mois
-                </p>
-              </div>
-              <div className="p-2 sm:p-3 bg-cyan-500/20 rounded-full flex-shrink-0">
-                <Target className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-cyan-400" />
-              </div>
-            </div>
-          </div>
-
-          {/* Nouvelle métrique : Taux d'ouverture moyen */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-gray-300 text-xs sm:text-sm truncate">Taux d'Ouverture Moyen</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
-                  {isLoading ? (
-                    <div className="animate-pulse bg-gray-600 h-8 w-16 rounded"></div>
-                  ) : (
-                    campaigns.length > 0 
-                      ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.openRate || 0), 0) / campaigns.length)}%`
-                      : '0%'
-                  )}
-                </p>
-                <p className="text-blue-400 text-xs sm:text-sm">Emails ouverts</p>
-              </div>
-              <div className="p-2 sm:p-3 bg-blue-500/20 rounded-full flex-shrink-0">
-                <Eye className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-blue-400" />
-              </div>
-            </div>
-          </div>
-
-          {/* Nouvelle métrique : Taux de clic moyen */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-gray-300 text-xs sm:text-sm truncate">Taux de Clic Moyen</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
-                  {isLoading ? (
-                    <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
-                  ) : (
-                    campaigns.length > 0 
-                      ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.clickRate || 0), 0) / campaigns.length)}%`
-                      : '0%'
-                  )}
-                </p>
-                <p className="text-orange-400 text-xs sm:text-sm">Liens cliqués</p>
-              </div>
-              <div className="p-2 sm:p-3 bg-orange-500/20 rounded-full flex-shrink-0">
-                <MousePointer className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-orange-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-gray-300 text-xs sm:text-sm truncate">Alertes Actives</p>
-                <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
-                  {isLoading ? (
-                    <div className="animate-pulse bg-gray-600 h-8 w-8 rounded"></div>
-                  ) : (
-                    dashboardStats.activeAlerts
-                  )}
-                </p>
-                <p className="text-red-400 text-xs sm:text-sm">Nécessitent attention</p>
-              </div>
-              <div className="p-2 sm:p-3 bg-red-500/20 rounded-full flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-red-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Actions Rapides */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <button 
-            onClick={() => window.location.href = '/campaign-wizard'}
-            className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:from-cyan-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 group"
-          >
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <div className="p-2 sm:p-3 bg-white/20 rounded-full flex-shrink-0">
-                <Plus className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" />
-              </div>
-              <div className="text-left min-w-0 flex-1">
-                <h3 className="text-lg sm:text-xl font-semibold truncate">Nouvelle Campagne</h3>
-                <p className="text-xs sm:text-sm opacity-90">Créer une simulation de phishing</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
-          </button>
-
-          <button className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group">
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <div className="p-2 sm:p-3 bg-cyan-500/20 rounded-full flex-shrink-0">
-                <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-cyan-400" />
-              </div>
-              <div className="text-left min-w-0 flex-1">
-                <h3 className="text-lg sm:text-xl font-semibold truncate">Analytics</h3>
-                <p className="text-xs sm:text-sm text-gray-300">Rapports détaillés</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
-          </button>
-
-          <button
-            onClick={() => window.location.href = '/users'}
-            className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
-          >
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
-                <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-purple-400" />
-              </div>
-              <div className="text-left min-w-0 flex-1">
-                <h3 className="text-lg sm:text-xl font-semibold truncate">Utilisateurs</h3>
-                <p className="text-xs sm:text-sm text-gray-300">Gérer les accès</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
-          </button>
-          
-          <button
-            onClick={() => navigate('/learning-pages')}
-            className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
-          >
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <div className="p-2 sm:p-3 bg-green-500/20 rounded-full flex-shrink-0">
-                <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-green-400" />
-              </div>
-              <div className="text-left min-w-0 flex-1">
-                <h3 className="text-lg sm:text-xl font-semibold truncate">Pages d'Apprentissage</h3>
-                <p className="text-xs sm:text-sm text-gray-300">Créer et modifier les formations</p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
-          {/* Campagnes en Cours avec statistiques en temps réel */}
-          <div className="xl:col-span-2">
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <h2 className="text-xl sm:text-2xl font-bold text-white">Campagnes en Cours</h2>
-                <div className="flex items-center space-x-2">
-                  {realTimeUpdates.length > 0 && (
-                    <div className="flex items-center space-x-1 text-green-400 text-xs sm:text-sm">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span>En direct</span>
-                    </div>
-                  )}
-                  <button className="text-cyan-400 hover:text-cyan-300 flex items-center space-x-2">
-                    <span className="text-sm sm:text-base">Voir tout</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+          {/* Métriques Clés */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-gray-300 text-xs sm:text-sm truncate">Campagnes Actives</p>
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                    {isLoading ? (
+                      <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
+                    ) : (
+                      dashboardStats.activeCampaigns
+                    )}
+                  </p>
+                  <p className="text-green-400 text-xs sm:text-sm">
+                    +{dashboardStats.newCampaignsThisMonth} ce mois
+                  </p>
+                </div>
+                <div className="p-2 sm:p-3 bg-cyan-500/20 rounded-full flex-shrink-0">
+                  <Target className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-cyan-400" />
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-3 sm:space-y-4">
-                {isLoading ? (
-                  // Skeleton loader pour les campagnes
-                  [...Array(3)].map((_, index) => (
-                    <div key={index} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 animate-pulse">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="bg-gray-600 h-4 w-32 rounded"></div>
-                        <div className="bg-gray-600 h-6 w-16 rounded-full"></div>
-                      </div>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-3">
-                        {[...Array(4)].map((_, i) => (
-                          <div key={i} className="bg-gray-600 h-3 w-20 rounded"></div>
-                        ))}
-                      </div>
-                      <div className="bg-gray-600 h-2 w-full rounded-full"></div>
-                    </div>
-                  ))
-                ) : (
-                  campaigns.map((campaign) => (
-                    <div key={campaign.id} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 hover:bg-white/10 transition-colors">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">{campaign.name}</h3>
-                        </div>
-                        <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
-                          campaign.status === 'active' 
-                            ? 'bg-green-500/20 text-green-400' 
-                            : campaign.status === 'error'
-                            ? 'bg-red-500/20 text-red-400'
-                            : 'bg-gray-500/20 text-gray-400'
-                        }`}>
-                          {campaign.status === 'active' ? 'Actif' : 
-                           campaign.status === 'error' ? 'Erreur' : 'Terminé'}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
-                        <div className="flex items-center space-x-1 sm:space-x-2">
-                          <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
-                          <span className="text-gray-300 truncate">{campaign.sent} envoyés</span>
-                        </div>
-                        <div className="flex items-center space-x-1 sm:space-x-2">
-                          <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
-                          <span className="text-gray-300 truncate">
-                            {campaign.opened} ouverts
-                            {campaign.openRate > 0 && (
-                              <span className="text-green-400 ml-1">({campaign.openRate}%)</span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1 sm:space-x-2">
-                          <MousePointer className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0" />
-                          <span className="text-gray-300 truncate">{campaign.totalClicks} clics</span>
-                        </div>
-                        <div className="flex items-center space-x-1 sm:space-x-2">
-                          <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
-                          <span className="text-gray-300 truncate">{campaign.completion}% formés</span>
-                        </div>
-                       </div>
-                    </div>
-                  ))
-                )}
+            {/* Nouvelle métrique : Taux d'ouverture moyen */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-gray-300 text-xs sm:text-sm truncate">Taux d'Ouverture Moyen</p>
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                    {isLoading ? (
+                      <div className="animate-pulse bg-gray-600 h-8 w-16 rounded"></div>
+                    ) : (
+                      campaigns.length > 0 
+                        ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.openRate || 0), 0) / campaigns.length)}%`
+                        : '0%'
+                    )}
+                  </p>
+                  <p className="text-blue-400 text-xs sm:text-sm">Emails ouverts</p>
+                </div>
+                <div className="p-2 sm:p-3 bg-blue-500/20 rounded-full flex-shrink-0">
+                  <Eye className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-blue-400" />
+                </div>
               </div>
             </div>
+
+            {/* Nouvelle métrique : Taux de clic moyen */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-gray-300 text-xs sm:text-sm truncate">Taux de Clic Moyen</p>
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+                    {isLoading ? (
+                      <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
+                    ) : (
+                      campaigns.length > 0 
+                        ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.clickRate || 0), 0) / campaigns.length)}%`
+                        : '0%'
+                    )}
+                  </p>
+                  <p className="text-orange-400 text-xs sm:text-sm">Liens cliqués</p>
+                </div>
+                <div className="p-2 sm:p-3 bg-orange-500/20 rounded-full flex-shrink-0">
+                  <MousePointer className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-orange-400" />
+                </div>
+              </div>
+            </div> 
           </div>
 
-          {/* Activité Récente et Recommandations */}
-          <div className="space-y-4 sm:space-y-6">
-            {/* Mises à jour en temps réel */}
-            {realTimeUpdates.length > 0 && (
+          {/* Actions Rapides */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+            <button 
+              onClick={() => window.location.href = '/campaign-wizard'}
+              className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:from-cyan-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 group"
+            >
+              <div className="flex items-center space-x-3 sm:space-x-4">
+                <div className="p-2 sm:p-3 bg-white/20 rounded-full flex-shrink-0">
+                  <Plus className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8" />
+                </div>
+                <div className="text-left min-w-0 flex-1">
+                  <h3 className="text-lg sm:text-xl font-semibold truncate">Nouvelle Campagne</h3>
+                  <p className="text-xs sm:text-sm opacity-90">Créer une simulation de phishing</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <button 
+              onClick={() => navigate('/analytics')}
+              className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
+            >
+              <div className="flex items-center space-x-3 sm:space-x-4">
+                <div className="p-2 sm:p-3 bg-cyan-500/20 rounded-full flex-shrink-0">
+                  <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-cyan-400" />
+                </div>
+                <div className="text-left min-w-0 flex-1">
+                  <h3 className="text-lg sm:text-xl font-semibold truncate">Analytics</h3>
+                  <p className="text-xs sm:text-sm text-gray-300">Rapports détaillés</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              onClick={() => window.location.href = '/users'}
+              className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
+            >
+              <div className="flex items-center space-x-3 sm:space-x-4">
+                <div className="p-2 sm:p-3 bg-purple-500/20 rounded-full flex-shrink-0">
+                  <Users className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-purple-400" />
+                </div>
+                <div className="text-left min-w-0 flex-1">
+                  <h3 className="text-lg sm:text-xl font-semibold truncate">Utilisateurs</h3>
+                  <p className="text-xs sm:text-sm text-gray-300">Gérer les accès</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
+            </button>
+            
+            <button
+              onClick={() => navigate('/learning-pages')}
+              className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
+            >
+              <div className="flex items-center space-x-3 sm:space-x-4">
+                <div className="p-2 sm:p-3 bg-green-500/20 rounded-full flex-shrink-0">
+                  <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-green-400" />
+                </div>
+                <div className="text-left min-w-0 flex-1">
+                  <h3 className="text-lg sm:text-xl font-semibold truncate">Pages d'Apprentissage</h3>
+                  <p className="text-xs sm:text-sm text-gray-300">Créer et modifier les formations</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
+            {/* Campagnes en Cours avec statistiques en temps réel */}
+            <div className="xl:col-span-2">
               <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
-                <h2 className="text-lg sm:text-xl font-bold text-white mb-4 flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span>Temps Réel</span>
-                </h2>
-                <div className="space-y-3">
-                  {realTimeUpdates.slice(0, 5).map((update, index) => (
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">Campagnes</h2>
+                  <div className="flex items-center space-x-2">
+                    {realTimeUpdates.length > 0 && (
+                      <div className="flex items-center space-x-1 text-green-400 text-xs sm:text-sm">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span>En direct</span>
+                      </div>
+                    )}
+                    <button 
+                      onClick={() => navigate('/analytics?view=campaigns')}
+                      className="text-cyan-400 hover:text-cyan-300 flex items-center space-x-2"
+                    >
+                      <span className="text-sm sm:text-base">Voir tout</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3 sm:space-y-4">
+                  {isLoading ? (
+                    // Skeleton loader pour les campagnes
+                    [...Array(3)].map((_, index) => (
+                      <div key={index} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 animate-pulse">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="bg-gray-600 h-4 w-32 rounded"></div>
+                          <div className="bg-gray-600 h-6 w-16 rounded-full"></div>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-3">
+                          {[...Array(4)].map((_, i) => (
+                            <div key={i} className="bg-gray-600 h-3 w-20 rounded"></div>
+                          ))}
+                        </div>
+                        <div className="bg-gray-600 h-2 w-full rounded-full"></div>
+                      </div>
+                    ))
+                  ) : (
+                    campaigns.map((campaign) => (
+                      <div key={campaign.id} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 hover:bg-white/10 transition-colors">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">{campaign.name}</h3>
+                          </div>
+                          <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
+                            campaign.status === 'active' 
+                              ? 'bg-green-500/20 text-green-400' 
+                              : campaign.status === 'error'
+                              ? 'bg-red-500/20 text-red-400'
+                              : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {campaign.status === 'active' ? 'Actif' : 
+                             campaign.status === 'error' ? 'Erreur' : 'Terminé'}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
+                          <div className="flex items-center space-x-1 sm:space-x-2">
+                            <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
+                            <span className="text-gray-300 truncate">{campaign.sent} envoyés</span>
+                          </div>
+                          <div className="flex items-center space-x-1 sm:space-x-2">
+                            <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
+                            <span className="text-gray-300 truncate">
+                              {campaign.opened} ouverts
+                              {campaign.openRate > 0 && (
+                                <span className="text-green-400 ml-1">({campaign.openRate}%)</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1 sm:space-x-2">
+                            <MousePointer className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0" />
+                            <span className="text-gray-300 truncate">{campaign.totalClicks} clics</span>
+                          </div>
+                          <div className="flex items-center space-x-1 sm:space-x-2">
+                            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
+                            <span className="text-gray-300 truncate">{formatDate(campaign.createdDate)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Activité Récente */}
+            <div className="space-y-4 sm:space-y-6">
+              {/* Mises à jour en temps réel */}
+              {realTimeUpdates.length > 0 && (
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
+                  <h2 className="text-lg sm:text-xl font-bold text-white mb-4 flex items-center">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="ml-2">Temps Réel</span>
+                  </h2>
+                  <div className="space-y-3">
+                    {realTimeUpdates.slice(0, 5).map((update, index) => (
+                      <div key={index} className="flex items-start space-x-3">
+                        <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-green-400"></div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-white text-xs sm:text-sm leading-relaxed">
+                            {update.type === 'email_open' && 'Email ouvert'}
+                            {update.type === 'email_click' && 'Lien cliqué'}
+                            {update.type === 'form_submit' && 'Formulaire soumis'}
+                            : {update.campaignName}
+                          </p>
+                          <p className="text-gray-400 text-xs">{new Date(update.timestamp).toLocaleTimeString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
+                <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Activité Récente</h2>
+                <div className="space-y-3 sm:space-y-4">
+                  {recentActivity.map((activity, index) => (
                     <div key={index} className="flex items-start space-x-3">
-                      <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-green-400"></div>
+                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                        activity.type === 'success' ? 'bg-green-400' :
+                        activity.type === 'warning' ? 'bg-orange-400' : 'bg-blue-400'
+                      }`}></div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-white text-xs sm:text-sm leading-relaxed">
-                          {update.type === 'email_open' && 'Email ouvert'}
-                          {update.type === 'email_click' && 'Lien cliqué'}
-                          {update.type === 'form_submit' && 'Formulaire soumis'}
-                          : {update.campaignName}
-                        </p>
-                        <p className="text-gray-400 text-xs">{new Date(update.timestamp).toLocaleTimeString()}</p>
+                        <p className="text-white text-xs sm:text-sm leading-relaxed">{activity.action}</p>
+                        <p className="text-gray-400 text-xs">{activity.time}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-            
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
-              <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Activité Récente</h2>
-              <div className="space-y-3 sm:space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                      activity.type === 'success' ? 'bg-green-400' :
-                      activity.type === 'warning' ? 'bg-orange-400' : 'bg-blue-400'
-                    }`}></div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-white text-xs sm:text-sm leading-relaxed">{activity.action}</p>
-                      <p className="text-gray-400 text-xs">{activity.time}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
-              <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Recommandations IA</h2>
-              <div className="space-y-3">
-                {recommendations.map((rec, index) => (
-                  <div key={index} className={`border rounded-lg p-3 ${
-                    rec.type === 'warning' ? 'bg-orange-500/10 border-orange-500/30' :
-                    rec.type === 'info' ? 'bg-blue-500/10 border-blue-500/30' :
-                    'bg-purple-500/10 border-purple-500/30'
-                  }`}>
-                    <p className={`text-xs sm:text-sm leading-relaxed ${
-                      rec.type === 'warning' ? 'text-orange-300' :
-                      rec.type === 'info' ? 'text-blue-300' :
-                      'text-purple-300'
-                    }`}>
-                      {rec.message}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            </div> 
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

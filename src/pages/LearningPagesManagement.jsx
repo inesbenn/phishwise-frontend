@@ -59,8 +59,8 @@ class LearningAPIClient {
       ...options,
     };
 
-    // Ajouter le token si disponible
-    const token = localStorage && localStorage.getItem ? localStorage.getItem('authToken') : null;
+    // Simulation du token sans localStorage
+    const token = null; // Pas d'utilisation de localStorage dans les artifacts
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -162,9 +162,13 @@ const ModuleInputField = ({ label, value, onChange, placeholder, type = "text", 
       />
     )}
   </div>
-);const LoadingSpinner = ({ size = "w-6 h-6", className = "" }) => (
+);
+
+const LoadingSpinner = ({ size = "w-6 h-6", className = "" }) => (
   <Loader className={`animate-spin ${size} ${className}`} />
-);const ErrorAlert = ({ error, onDismiss }) => (
+);
+
+const ErrorAlert = ({ error, onDismiss }) => (
   <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 mb-4 flex items-start space-x-3">
     <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
     <div className="flex-1">
@@ -180,7 +184,9 @@ const ModuleInputField = ({ label, value, onChange, placeholder, type = "text", 
       </button>
     )}
   </div>
-);const SuccessAlert = ({ message, onDismiss }) => (
+);
+
+const SuccessAlert = ({ message, onDismiss }) => (
   <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-4 flex items-start space-x-3">
     <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
     <div className="flex-1">
@@ -197,7 +203,7 @@ const ModuleInputField = ({ label, value, onChange, placeholder, type = "text", 
   </div>
 );
 
-export default function LearningPagesManagement({ campaignId, onNext, onBack }) {
+export default function LearningPagesManagement({ campaignId, onNext }) {
   // States
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
@@ -239,8 +245,7 @@ export default function LearningPagesManagement({ campaignId, onNext, onBack }) 
   const moduleTypes = [
     { value: 'text', label: 'Contenu Texte', icon: FileText, color: 'blue', description: 'Ajouter du texte, des paragraphes, des listes' },
     { value: 'video', label: 'Vidéo', icon: Video, color: 'purple', description: 'Intégrer une vidéo YouTube ou uploader un fichier' },
-    { value: 'quiz', label: 'Quiz', icon: HelpCircle, color: 'green', description: 'Créer un questionnaire avec choix multiples' },
-    { value: 'simulation', label: 'Simulation', icon: Target, color: 'orange', description: 'Exercice interactif de mise en situation' }
+    { value: 'quiz', label: 'Quiz', icon: HelpCircle, color: 'green', description: 'Créer un questionnaire avec choix multiples' }
   ];
 
   const statusOptions = [
@@ -464,7 +469,7 @@ export default function LearningPagesManagement({ campaignId, onNext, onBack }) 
     }
   };
 
-const copyModule = async (module) => {
+  const copyModule = async (module) => {
     const copiedModule = {
       ...module,
       id: Date.now(),
@@ -490,7 +495,7 @@ const copyModule = async (module) => {
   // Learning functions
   const startFormation = (formation) => {
     setSelectedFormationForLearning(formation);
-  setCurrentModuleIndex(0);
+    setCurrentModuleIndex(0);
     setActiveTab('learning');
   };
 
@@ -599,7 +604,7 @@ const copyModule = async (module) => {
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-cyan-500/20 to-purple-600/20 rounded-2xl p-8 border border-white/20 shadow-xl">
         <div className="flex items-center space-x-4 mb-6">
-          <div className="p-3 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-xl">
+          <div className="p-3 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-xl shadow-lg">
             <Shield className="w-8 h-8 text-white" />
           </div>
           <div>
@@ -610,41 +615,32 @@ const copyModule = async (module) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white/10 rounded-xl p-6 border border-white/20">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white/10 rounded-xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
             <div className="flex items-center space-x-3 mb-4">
-              <Trophy className="w-6 h-6 text-yellow-400" />
-              <h3 className="text-white font-semibold">Formations Disponibles</h3>
+              <div className="p-2 bg-yellow-500/20 rounded-lg">
+                <Trophy className="w-6 h-6 text-yellow-400" />
+              </div>
+              <h3 className="text-white font-semibold text-lg">Formations Disponibles</h3>
             </div>
-            <div className="text-3xl font-bold text-cyan-400 mb-2">
+            <div className="text-3xl font-bold text-yellow-400 mb-2">
               {loading ? <LoadingSpinner size="w-8 h-8" /> : formations.length}
             </div>
             <p className="text-gray-400 text-sm">Modules interactifs prêts</p>
           </div>
 
-          <div className="bg-white/10 rounded-xl p-6 border border-white/20">
+          <div className="bg-white/10 rounded-xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
             <div className="flex items-center space-x-3 mb-4">
-              <Brain className="w-6 h-6 text-purple-400" />
-              <h3 className="text-white font-semibold">Modules Créés</h3>
+              <div className="p-2 bg-purple-500/20 rounded-lg">
+                <Brain className="w-6 h-6 text-purple-400" />
+              </div>
+              <h3 className="text-white font-semibold text-lg">Modules Créés</h3>
             </div>
             <div className="text-3xl font-bold text-purple-400 mb-2">
               {loading ? <LoadingSpinner size="w-8 h-8" /> : formations.reduce((acc, f) => acc + (f.modules?.length || 0), 0)}
             </div>
             <p className="text-gray-400 text-sm">Contenus pédagogiques</p>
-          </div>
-
-          <div className="bg-white/10 rounded-xl p-6 border border-white/20">
-            <div className="flex items-center space-x-3 mb-4">
-              <Users className="w-6 h-6 text-green-400" />
-              <h3 className="text-white font-semibold">Utilisateurs</h3>
-            </div>
-            <div className="text-3xl font-bold text-green-400 mb-2">
-              {userStats.activeUsers}/{userStats.totalUsers}
-            </div>
-            <p className="text-gray-400 text-sm">
-              {campaignId ? 'Targets de la campagne' : 'Participants cette semaine'}
-            </p>
-          </div>
+          </div> 
         </div>
 
         {loading && (
@@ -653,272 +649,7 @@ const copyModule = async (module) => {
             <span className="text-gray-300">Chargement des données...</span>
           </div>
         )}
-      </div>
-
-      {/* Statistiques de Progression des Utilisateurs */}
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-white flex items-center space-x-2">
-            <TrendingUp className="w-6 h-6 text-cyan-400" />
-            <span>Progression des Utilisateurs</span>
-            {campaignData && (
-              <span className="text-sm text-gray-400 ml-2">({campaignData.name})</span>
-            )}
-          </h3>
-          <button
-            onClick={loadCampaignStats}
-            disabled={loading || !campaignId}
-            className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-all duration-300 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? <LoadingSpinner size="w-4 h-4" /> : <Activity className="w-4 h-4" />}
-            <span>Actualiser</span>
-          </button>
-        </div>
-        
-        {/* Vue d'ensemble */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/5 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <BarChart3 className="w-4 h-4 text-blue-400" />
-              <span className="text-white font-medium">Taux de Completion</span>
-            </div>
-            <div className="text-2xl font-bold text-blue-400">{userStats.completionRate}%</div>
-            <p className="text-gray-400 text-xs">Formations terminées</p>
-          </div>
-
-          <div className="bg-white/5 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Trophy className="w-4 h-4 text-yellow-400" />
-              <span className="text-white font-medium">Badges Obtenus</span>
-            </div>
-            <div className="text-2xl font-bold text-yellow-400">{userStats.totalBadges}</div>
-            <p className="text-gray-400 text-xs">Total collectif</p>
-          </div>
-
-          <div className="bg-white/5 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Star className="w-4 h-4 text-purple-400" />
-              <span className="text-white font-medium">Score Moyen</span>
-            </div>
-            <div className="text-2xl font-bold text-purple-400">{userStats.averageScore}%</div>
-            <p className="text-gray-400 text-xs">Tous utilisateurs</p>
-          </div>
-
-          <div className="bg-white/5 rounded-lg p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Users className="w-4 h-4 text-green-400" />
-              <span className="text-white font-medium">Participation</span>
-            </div>
-            <div className="text-2xl font-bold text-green-400">
-              {userStats.totalUsers > 0 ? Math.round((userStats.activeUsers / userStats.totalUsers) * 100) : 0}%
-            </div>
-            <p className="text-gray-400 text-xs">Utilisateurs actifs</p>
-          </div>
-        </div>
-
-        {/* Filtres pour les utilisateurs */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Rechercher un utilisateur..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-3 w-full bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-base"
-            />
-          </div>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 min-w-[200px] text-base"
-          >
-            {statusOptions.map(status => (
-              <option key={status.value} value={status.value} className="bg-slate-800">
-                {status.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Liste détaillée des utilisateurs */}
-        <div className="space-y-3">
-          <h4 className="text-lg font-semibold text-white mb-4">
-            Détail par Utilisateur ({getFilteredUsers().length})
-          </h4>
-          
-          {loading && !userProgresses.length ? (
-            <div className="flex items-center justify-center py-12">
-              <LoadingSpinner size="w-8 h-8" />
-              <span className="ml-3 text-gray-300">Chargement des données utilisateurs...</span>
-            </div>
-          ) : getFilteredUsers().length === 0 ? (
-            <div className="text-center py-12">
-              <UserX className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400">
-                {userProgresses.length === 0 
-                  ? "Aucune donnée utilisateur disponible" 
-                  : "Aucun utilisateur trouvé pour les filtres actuels"
-                }
-              </p>
-              {campaignId && !campaignStats && (
-                <button
-                  onClick={loadCampaignStats}
-                  className="mt-4 px-4 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 transition-colors"
-                >
-                  Charger les statistiques
-                </button>
-              )}
-            </div>
-          ) : (
-            getFilteredUsers().map(user => {
-              const userStatus = getUserStatus(user);
-              const statusColor = getStatusColor(userStatus);
-              const statusLabel = getStatusLabel(userStatus);
-
-              return (
-                <div key={user.email} className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-colors">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-purple-500 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">
-                          {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                        </span>
-                      </div>
-                      <div>
-                        <h5 className="text-white font-medium">{user.firstName} {user.lastName}</h5>
-                        <div className="flex items-center space-x-2 text-sm text-gray-400">
-                          <Mail className="w-3 h-3" />
-                          <span>{user.email}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right flex items-center space-x-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}>
-                        {statusLabel}
-                      </span>
-                      {user.lastActivity && (
-                        <div className="text-right">
-                          <div className="flex items-center space-x-1 text-xs text-gray-400">
-                            <Calendar className="w-3 h-3" />
-                            <span>
-                              Dernière activité: {new Date(user.lastActivity).toLocaleDateString('fr-FR')}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Informations supplémentaires */}
-                  {(user.position || user.country || user.office) && (
-                    <div className="flex items-center space-x-4 mb-3 text-sm text-gray-400">
-                      {user.position && (
-                        <div className="flex items-center space-x-1">
-                          <Briefcase className="w-3 h-3" />
-                          <span>{user.position}</span>
-                        </div>
-                      )}
-                      {user.country && (
-                        <div className="flex items-center space-x-1">
-                          <MapPin className="w-3 h-3" />
-                          <span>{user.country}</span>
-                        </div>
-                      )}
-                      {user.office && (
-                        <div className="flex items-center space-x-1">
-                          <Target className="w-3 h-3" />
-                          <span>{user.office}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Métriques de progression */}
-                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-400">Formations</p>
-                      <p className="text-white font-medium">
-                        {user.totalFormationsCompleted || 0}/{user.formations?.length || 0}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">En cours</p>
-                      <p className="text-yellow-400 font-medium">
-                        {(user.totalFormationsStarted || 0) - (user.totalFormationsCompleted || 0)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Badges</p>
-                      <div className="flex items-center space-x-1">
-                        <Award className="w-3 h-3 text-yellow-400" />
-                        <span className="text-yellow-400 font-medium">{user.totalBadgesEarned || 0}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Score moyen</p>
-                      <p className={`font-medium ${
-                        (user.averageScore || 0) >= 80 
-                          ? 'text-green-400' 
-                          : (user.averageScore || 0) >= 60 
-                            ? 'text-yellow-400' 
-                            : 'text-red-400'
-                      }`}>
-                        {user.averageScore || 0}%
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Temps total</p>
-                      <p className="text-cyan-400 font-medium">
-                        {Math.round((user.totalTimeSpent || 0) / 60)} min
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Progression</p>
-                      <div className="w-full bg-white/10 rounded-full h-2 mt-1">
-                        <div 
-                          className="bg-gradient-to-r from-cyan-400 to-purple-500 h-2 rounded-full transition-all duration-500"
-                          style={{ 
-                            width: `${(user.formations?.length || 0) > 0 
-                              ? ((user.totalFormationsCompleted || 0) / (user.formations?.length || 1)) * 100 
-                              : 0}%` 
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Détail des formations si disponible */}
-                  {user.formations && user.formations.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-white/10">
-                      <p className="text-gray-400 text-sm mb-2">Formations assignées:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {user.formations.map((formation, index) => (
-                          <div
-                            key={formation.formationId || index}
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              formation.status === 'completed' 
-                                ? 'bg-green-500/20 text-green-400' 
-                                : formation.status === 'in_progress'
-                                  ? 'bg-yellow-500/20 text-yellow-400'
-                                  : 'bg-gray-500/20 text-gray-400'
-                            }`}
-                          >
-                            {formation.formationTitle || `Formation ${index + 1}`}
-                            {formation.overallProgress > 0 && (
-                              <span className="ml-1">({formation.overallProgress}%)</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+      </div> 
     </div>
   );
 
@@ -1650,13 +1381,7 @@ const copyModule = async (module) => {
       {/* Header */}
       <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-40 w-full px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={onBack}
-              className="p-2 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-white/10"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
+          <div className="flex items-center space-x-4">          
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
                 Cybersécurité Interactive
@@ -1932,15 +1657,16 @@ const copyModule = async (module) => {
                         <h3 className="text-xl font-bold text-white">Modules créés ({filteredModules.length})</h3>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => setIsPreview(!isPreview)}
-                            className={`flex items-center space-x-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
-                              isPreview
-                                ? 'bg-cyan-400/20 text-cyan-400 border border-cyan-400/20 shadow-md'
-                                : 'bg-white/10 text-white border border-white/20 hover:bg-white/20 shadow-md'
-                            }`}
+                            onClick={() => {
+                              // Sauvegarder les modifications du module actuel
+                              if (activeModuleId && currentFormation) {
+                                showSuccess('Modifications sauvegardées avec succès !');
+                              }
+                            }}
+                            className="flex items-center space-x-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 shadow-md"
                           >
-                            <Eye className="w-4 h-4" />
-                            <span>Aperçu</span>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Enregistrer</span>
                           </button>
                         </div>
                       </div>
