@@ -128,43 +128,84 @@ const PhishWiseFinalValidation = ({ campaignId, onBack, onLaunch }) => {
     }
   };
 
-  const handleLaunchCampaign = async () => {
-    if (!validationStatus?.readyForLaunch) {
-      alert('La campagne n\'est pas prête à être lancée. Veuillez corriger les erreurs affichées.');
+const handleLaunchCampaign = async () => {
+  if (!validationStatus?.readyForLaunch) {
+    alert('La campagne n\'est pas prête à être lancée. Veuillez corriger les erreurs affichées.');
+    return;
+  }
+
+  if (launching) {
+    console.log('⚠️ Lancement déjà en cours, ignore ce clic');
+    return;
+  }
+
+  setLaunching(true);
+  
+  try {
+    const now = new Date();
+    const scheduledDate = new Date(campaignData.startDate);
+    const sendImmediately = scheduledDate <= now;
+
+    const confirmMessage = sendImmediately 
+     ? `Êtes-vous sûr de vouloir lancer la campagne immédiatement ?\n\nLes emails seront envoyés dès maintenant à ${campaignData?.targets?.length || 0} destinataire(s).`
+    : `Êtes-vous sûr de vouloir programmer la campagne ?\n\nLes emails seront envoyés automatiquement le ${scheduledDate.toLocaleDateString('fr-FR')} à ${scheduledDate.toLocaleTimeString('fr-FR')} à ${campaignData?.targets?.length || 0} destinataire(s).`;
+
+    if (!confirm(confirmMessage)) {
+      setLaunching(false);
       return;
     }
 
-    setLaunching(true);
-    try {
-      // 1. Lancer la campagne
-      await apiCall(`/campaigns/${campaignId}/launch`, { method: 'POST' });
-      console.log('Campaign launched successfully');
+    console.log('🚀 Lancement de la campagne avec envoi:', sendImmediately ? 'immédiat' : 'programmé');
+    
+    const result = await apiCall(`/campaigns/${campaignId}/launch`, { 
+      method: 'POST',
+      body: JSON.stringify({
+        scheduledDate: campaignData.startDate,
+        sendImmediately,
+        autoSend: sendImmediately
+      })
+    });
+    
+    console.log('✅ Résultat du lancement:', result);
 
-      // 2. Envoyer les emails de campagne
-      const emailResult = await apiCall(`/campaigns/${campaignId}/send-mail`, { 
-        method: 'POST',
-        body: JSON.stringify({}) // Envoie à toutes les cibles
-      });
-      
-      console.log('Emails sent successfully:', emailResult);
-      
-      // 3. Afficher les résultats
-      if (emailResult.success) {
-        alert(`Campagne lancée avec succès !\n${emailResult.statistics.successful} emails envoyés avec succès\n${emailResult.statistics.failed} échecs`);
+    // CORRECTION: Vérifier explicitement la propriété success du backend
+    if (result.success === true) {
+      if (sendImmediately) {
+        // Envoi immédiat
+        if (result.emailsSent && result.statistics) {
+          alert(`Campagne lancée avec succès !\n\n📧 ${result.statistics.successful || 0} emails envoyés avec succès\n❌ ${result.statistics.failed || 0} échecs\n\nLes ouvertures et clics seront trackés automatiquement.`);
+        } else {
+          alert(`Campagne lancée immédiatement !\n\nStatut: ${result.campaign?.status || 'en cours'}\n\nConsultez le tableau de bord pour suivre l'évolution.`);
+        }
       } else {
-        alert(`Campagne lancée mais problème d'envoi d'emails: ${emailResult.message}`);
+        // Campagne programmée
+        alert(`Campagne programmée avec succès !\n\n📅 Les emails seront envoyés automatiquement le ${scheduledDate.toLocaleDateString('fr-FR')} à ${scheduledDate.toLocaleTimeString('fr-FR')}\n📧 ${campaignData?.targets?.length || 0} destinataire(s) ciblé(s)\n\nVous pouvez modifier ou annuler la programmation depuis le tableau de bord.`);
       }
 
+      // Callback de succès
       if (onLaunch) {
         onLaunch();
       }
-    } catch (err) {
-      console.error('Error launching campaign:', err);
-      alert(`Erreur lors du lancement de la campagne: ${err.message}`);
-    } finally {
-      setLaunching(false);
+    } else {
+      // Cas d'échec explicite
+      const errorMessage = result.message || 'Erreur inconnue lors du lancement';
+      console.error('❌ Réponse d\'échec du serveur:', result);
+      alert(`Erreur lors du lancement de la campagne: ${errorMessage}`);
     }
-  };
+    
+  } catch (err) {
+    console.error('❌ Erreur lors du lancement de la campagne:', err);
+    
+    // Différencier les erreurs réseau des erreurs logiques
+    if (err.message.includes('fetch') || err.message.includes('network')) {
+      alert('Erreur de connexion au serveur. Vérifiez votre connexion internet et réessayez.');
+    } else {
+      alert(`Erreur lors du lancement de la campagne: ${err.message}`);
+    }
+  } finally {
+    setLaunching(false);
+  }
+};
 
   // Fonction pour obtenir l'icône et le style selon le statut
   const getStatusDisplay = (isComplete, hasWarning = false) => {
@@ -765,7 +806,7 @@ const PhishWiseFinalValidation = ({ campaignId, onBack, onLaunch }) => {
             </div>
           )}
 
-          {/* Action Buttons */}
+        {/* Action Buttons */}
           <div className="flex items-center justify-between pt-8 border-t border-white/10">
             <button
               onClick={onBack}
@@ -776,6 +817,14 @@ const PhishWiseFinalValidation = ({ campaignId, onBack, onLaunch }) => {
             </button>
 
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => window.location.href = '/home'}
+                className="flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all duration-200 border border-white/20 hover:scale-105"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Accueil</span>
+              </button>
+
               <button
                 onClick={handleLaunchCampaign}
                 disabled={!validationStatus?.readyForLaunch || launching}

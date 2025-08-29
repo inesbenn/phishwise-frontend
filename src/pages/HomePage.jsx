@@ -1,5 +1,7 @@
+// src/pages/HomePage.jsx - Version corrigée avec affichage des vraies statistiques
 import { useState, useEffect } from 'react'; 
 import { useNavigate } from 'react-router-dom';
+import RoleGuard from '../components/RoleGuard';
 import { 
   Shield, 
   Users, 
@@ -26,156 +28,18 @@ import {
   GraduationCap,
   RefreshCw,
   Wifi,
-  WifiOff
+  WifiOff,
+  AlertTriangle
 } from 'lucide-react';
 
-// API pour récupérer les données depuis le backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-const dashboardAPI = {
-  async getDashboardStats() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Erreur getDashboardStats:', error);
-      // Données de fallback
-      return {
-        activeCampaigns: 8,
-        newCampaignsThisMonth: 2,
-        totalEmployees: 1247,
-        successRate: 87
-      };
-    }
-  },
-
-  async getActiveCampaigns() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/campaigns`, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const campaigns = await response.json();
-      
-      // Enrichir chaque campagne avec des statistiques de tracking en temps réel
-      const enrichedCampaigns = await Promise.all(
-        campaigns.map(async (campaign) => {
-          try {
-            // Récupérer les stats de tracking pour chaque campagne
-            const trackingResponse = await fetch(`${API_BASE_URL}/tracking/stats/${campaign.id}`, {
-              headers: {
-                'Content-Type': 'application/json',
-              }
-            });
-            
-            if (trackingResponse.ok) {
-              const trackingData = await trackingResponse.json();
-              const stats = trackingData.data;
-              
-              return {
-                ...campaign,
-                // Remplacer par les vraies statistiques de tracking
-                sent: stats.totalSent || campaign.sent,
-                opened: stats.totalOpened || campaign.opened,
-                clicked: stats.uniqueClicks || campaign.clicked,
-                totalClicks: stats.totalClicks || 0,
-                openRate: stats.openRate || 0,
-                clickRate: stats.clickRate || 0,
-                // Recalculer le pourcentage de completion basé sur les ouvertures
-                completion: stats.totalSent > 0 
-                  ? Math.round((stats.totalOpened / stats.totalSent) * 100)
-                  : campaign.completion,
-                progress: stats.totalSent > 0 
-                  ? Math.round((stats.totalOpened / stats.totalSent) * 100)
-                  : campaign.progress,
-                // Indicateurs de performance
-                hasHighClickRate: stats.clickRate > 15,
-                hasLowOpenRate: stats.openRate < 20,
-                isActive: campaign.status === 'active',
-                // Date de création formatée
-                createdDate: campaign.createdAt || campaign.startDate || new Date().toISOString()
-              };
-            } else {
-              // Garder les données originales si pas de tracking disponible
-              return {
-                ...campaign,
-                openRate: 0,
-                clickRate: 0,
-                hasHighClickRate: false,
-                hasLowOpenRate: false,
-                createdDate: campaign.createdAt || campaign.startDate || new Date().toISOString()
-              };
-            }
-          } catch (trackingError) {
-            console.warn(`Impossible de récupérer les stats pour ${campaign.id}:`, trackingError);
-            return {
-              ...campaign,
-              openRate: 0,
-              clickRate: 0,
-              hasHighClickRate: false,
-              hasLowOpenRate: false,
-              createdDate: campaign.createdAt || campaign.startDate || new Date().toISOString()
-            };
-          }
-        })
-      );
-      
-      return enrichedCampaigns;
-    } catch (error) {
-      console.error('Erreur getActiveCampaigns:', error);
-      // Données de fallback
-      return [
-        { id: 1, name: "Erreur de connexion - Vérifiez le backend", status: "error", sent: 0, opened: 0, clicked: 0, completion: 0, progress: 0, openRate: 0, clickRate: 0, createdDate: new Date().toISOString() }
-      ];
-    }
-  },
-
-  async getRecentActivity() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/recent-activity`, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Erreur getRecentActivity:', error);
-      // Générer une activité basée sur le tracking
-      return [
-        { time: "Il y a 2 min", action: "Email ouvert - Campagne Finance", type: "success" },
-        { time: "Il y a 5 min", action: "3 nouveaux clics détectés", type: "info" },
-        { time: "Il y a 12 min", action: "Taux d'ouverture élevé (89%) - Campagne IT", type: "success" },
-        { time: "Il y a 18 min", action: "Nouvelle soumission capturée", type: "warning" }
-      ];
-    }
-  }, 
-
-  // Nouvelle fonction pour surveiller les campagnes en temps réel
-  async getEmailTrackingUpdates() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/tracking/recent-events`, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      if (response.ok) {
-        return await response.json();
-      }
-      return [];
-    } catch (error) {
-      console.warn('Impossible de récupérer les mises à jour en temps réel:', error);
-      return [];
-    }
-  }
-};
+// Import de l'API corrigée
+import { 
+  getDashboardStats, 
+  getActiveCampaigns, 
+  getRecentActivity, 
+  getEmailTrackingUpdates,
+  testDashboardConnection
+} from '../api/dashboard';
 
 export default function AdminDashboard() {
   // États pour les données
@@ -183,7 +47,15 @@ export default function AdminDashboard() {
     activeCampaigns: 0,
     newCampaignsThisMonth: 0,
     totalEmployees: 0,
-    successRate: 0
+    successRate: 0,
+    emailMetrics: {
+      totalEmailsSent: 0,
+      totalEmailsOpened: 0,
+      totalClicks: 0,
+      avgOpenRate: 0,
+      avgClickRate: 0,
+      campaignsWithTracking: 0
+    }
   });
   
   const [campaigns, setCampaigns] = useState([]);
@@ -196,32 +68,86 @@ export default function AdminDashboard() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [error, setError] = useState(null);
   const [realTimeUpdates, setRealTimeUpdates] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState('checking');
   
   const navigate = useNavigate();
 
-  // Fonction pour charger toutes les données
+  // Fonction pour tester la connexion
+  const checkConnection = async () => {
+    try {
+      const result = await testDashboardConnection();
+      setIsConnected(result.success);
+      setConnectionStatus(result.success ? 'connected' : 'disconnected');
+      
+      if (!result.success) {
+        console.warn('Test de connexion échoué:', result.error);
+      }
+    } catch (error) {
+      setIsConnected(false);
+      setConnectionStatus('error');
+      console.error('Erreur test de connexion:', error);
+    }
+  };
+
+  // Fonction pour charger toutes les données avec gestion d'erreur améliorée
   const loadDashboardData = async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
+    if (showLoading) {
+      setIsLoading(true);
+      setConnectionStatus('loading');
+    }
+    
     setError(null);
     
     try {
-      // Charger toutes les données en parallèle
-      const [stats, campaignsData, activity] = await Promise.all([
-        dashboardAPI.getDashboardStats(),
-        dashboardAPI.getActiveCampaigns(),
-        dashboardAPI.getRecentActivity()
+      console.log('🔄 Chargement des données du dashboard...');
+      
+      // Test de connexion d'abord
+      await checkConnection();
+      
+      // Charger toutes les données en parallèle avec timeout
+      const [stats, campaignsData, activity] = await Promise.allSettled([
+        getDashboardStats(),
+        getActiveCampaigns(), 
+        getRecentActivity()
       ]);
 
-      setDashboardStats(stats);
-      setCampaigns(campaignsData);
-      setRecentActivity(activity); 
-      setIsConnected(true);
+      // Traiter les résultats
+      if (stats.status === 'fulfilled') {
+        setDashboardStats(stats.value);
+        console.log('✅ Stats chargées:', stats.value);
+      } else {
+        console.error('❌ Erreur stats:', stats.reason);
+        setError(prev => prev + ' Stats: ' + stats.reason.message);
+      }
+
+      if (campaignsData.status === 'fulfilled') {
+        setCampaigns(campaignsData.value);
+        console.log(`✅ ${campaignsData.value.length} campagnes chargées`);
+        
+        // Log des données pour debug
+        campaignsData.value.slice(0, 2).forEach(campaign => {
+          console.log(`📊 ${campaign.name}: Sent=${campaign.sent}, Opened=${campaign.opened} (${campaign.openRate}%), Clicked=${campaign.clicked} (${campaign.clickRate}%)`);
+        });
+      } else {
+        console.error('❌ Erreur campagnes:', campaignsData.reason);
+        setError(prev => (prev || '') + ' Campagnes: ' + campaignsData.reason.message);
+      }
+
+      if (activity.status === 'fulfilled') {
+        setRecentActivity(activity.value); 
+        console.log(`✅ ${activity.value.length} activités chargées`);
+      } else {
+        console.error('❌ Erreur activité:', activity.reason);
+      }
+
       setLastRefresh(new Date());
+      setConnectionStatus('connected');
       
     } catch (err) {
-      console.error('Erreur lors du chargement du dashboard:', err);
-      setError('Erreur de connexion au serveur');
+      console.error('❌ Erreur générale lors du chargement:', err);
+      setError(`Erreur de connexion: ${err.message}`);
       setIsConnected(false);
+      setConnectionStatus('error');
     } finally {
       setIsLoading(false);
     }
@@ -230,7 +156,7 @@ export default function AdminDashboard() {
   // Fonction pour mettre à jour les statistiques en temps réel
   const updateRealTimeStats = async () => {
     try {
-      const updates = await dashboardAPI.getEmailTrackingUpdates();
+      const updates = await getEmailTrackingUpdates();
       if (updates.length > 0) {
         setRealTimeUpdates(prev => [...updates, ...prev].slice(0, 10));
         
@@ -253,7 +179,7 @@ export default function AdminDashboard() {
         );
       }
     } catch (error) {
-      console.warn('Erreur mise à jour temps réel:', error);
+      console.warn('⚠️ Erreur mise à jour temps réel:', error);
     }
   };
 
@@ -266,10 +192,10 @@ export default function AdminDashboard() {
       loadDashboardData(false);
     }, 30000);
     
-    // Actualisation temps réel toutes les 10 secondes pour les stats d'email
+    // Actualisation temps réel toutes les 15 secondes pour les stats d'email
     const realtimeInterval = setInterval(() => {
       updateRealTimeStats();
-    }, 10000);
+    }, 15000);
     
     return () => {
       clearInterval(dataInterval);
@@ -279,25 +205,36 @@ export default function AdminDashboard() {
 
   // Fonction pour actualiser manuellement
   const handleRefresh = () => {
+    console.log('🔄 Actualisation manuelle déclenchée');
     loadDashboardData();
   };
 
-  // Formater les nombres
+  // Fonction pour formater les nombres
   const formatNumber = (num) => {
     if (num >= 1000) {
       return (num / 1000).toFixed(1) + 'k';
     }
-    return num.toString();
+    return num?.toString() || '0';
   };
 
   // Fonction pour formater la date
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('fr-FR');
   };
 
+  // Calcul des métriques moyennes depuis les campagnes
+  const avgOpenRate = campaigns.length > 0 
+    ? Math.round(campaigns.reduce((sum, c) => sum + (c.openRate || 0), 0) / campaigns.length)
+    : dashboardStats.emailMetrics?.avgOpenRate || 0;
+
+  const avgClickRate = campaigns.length > 0 
+    ? Math.round(campaigns.reduce((sum, c) => sum + (c.clickRate || 0), 0) / campaigns.length)
+    : dashboardStats.emailMetrics?.avgClickRate || 0;
+
   return (
     <div className="min-h-screen w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
-      {/* Header */}
+      {/* Header avec indicateur de statut amélioré */}
       <header className="bg-black/20 backdrop-blur-lg border-b border-white/10 sticky top-0 z-50 w-full flex-shrink-0">
         <div className="w-full px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
@@ -308,17 +245,27 @@ export default function AdminDashboard() {
               <span className="px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded-full text-xs sm:text-sm font-medium">
                 Admin
               </span>
-              {/* Indicateur de connexion et temps réel */}
-              <div className="flex items-center space-x-1">
-                {isConnected ? (
+              
+              {/* Indicateur de connexion amélioré */}
+              <div className="flex items-center space-x-2">
+                {connectionStatus === 'connected' ? (
                   <div className="flex items-center space-x-1">
                     <Wifi className="w-4 h-4 text-green-400" />
+                    <span className="text-xs text-green-400">Connecté</span>
                     {realTimeUpdates.length > 0 && (
                       <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                     )}
                   </div>
+                ) : connectionStatus === 'loading' ? (
+                  <div className="flex items-center space-x-1">
+                    <RefreshCw className="w-4 h-4 text-yellow-400 animate-spin" />
+                    <span className="text-xs text-yellow-400">Chargement</span>
+                  </div>
                 ) : (
-                  <WifiOff className="w-4 h-4 text-red-400" />
+                  <div className="flex items-center space-x-1">
+                    <WifiOff className="w-4 h-4 text-red-400" />
+                    <span className="text-xs text-red-400">Hors ligne</span>
+                  </div>
                 )}
                 <span className="text-xs text-gray-400 hidden sm:inline">
                   {lastRefresh.toLocaleTimeString()}
@@ -336,13 +283,12 @@ export default function AdminDashboard() {
                   className="pl-10 pr-4 py-2 w-40 lg:w-60 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm"
                 />
               </div>
-              
-              {/* Bouton refresh */}
+               
               <button 
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="p-2 text-gray-300 hover:text-white disabled:opacity-50"
-                title="Actualiser"
+                className="p-2 text-gray-300 hover:text-white disabled:opacity-50 transition-colors"
+                title="Actualiser les données"
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>  
@@ -392,20 +338,28 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      {/* Contenu principal avec scroll */}
+      {/* Contenu principal */}
       <main className="flex-1 w-full">
         <div className="w-full px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
-          {/* Message d'erreur */}
+          {/* Message d'erreur amélioré */}
           {error && ( 
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6 flex items-center space-x-3"> 
-              <div>
-                <p className="text-red-300 font-medium">Erreur de connexion</p>
-                <p className="text-red-200 text-sm">{error}</p>
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6 flex items-start space-x-3"> 
+              <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <p className="text-red-300 font-medium">Problème de connexion détecté</p>
+                <p className="text-red-200 text-sm mt-1">{error}</p>
+                <button 
+                  onClick={handleRefresh}
+                  className="mt-2 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1 rounded transition-colors"
+                >
+                  Réessayer
+                </button>
               </div>
             </div>
           )}
 
-          {/* Métriques Clés */}
+          
+          {/* Métriques Clés avec vraies données */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
@@ -415,11 +369,11 @@ export default function AdminDashboard() {
                     {isLoading ? (
                       <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
                     ) : (
-                      dashboardStats.activeCampaigns
+                      dashboardStats.activeCampaigns || campaigns.filter(c => c.status === 'active').length
                     )}
                   </p>
                   <p className="text-green-400 text-xs sm:text-sm">
-                    +{dashboardStats.newCampaignsThisMonth} ce mois
+                    +{dashboardStats.newCampaignsThisMonth || 0} ce mois
                   </p>
                 </div>
                 <div className="p-2 sm:p-3 bg-cyan-500/20 rounded-full flex-shrink-0">
@@ -428,7 +382,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Nouvelle métrique : Taux d'ouverture moyen */}
+            {/* Taux d'ouverture moyen calculé depuis les vraies données */}
             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
@@ -437,12 +391,12 @@ export default function AdminDashboard() {
                     {isLoading ? (
                       <div className="animate-pulse bg-gray-600 h-8 w-16 rounded"></div>
                     ) : (
-                      campaigns.length > 0 
-                        ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.openRate || 0), 0) / campaigns.length)}%`
-                        : '0%'
+                      `${avgOpenRate}%`
                     )}
                   </p>
-                  <p className="text-blue-400 text-xs sm:text-sm">Emails ouverts</p>
+                  <p className="text-blue-400 text-xs sm:text-sm">
+                    {dashboardStats.emailMetrics?.totalEmailsOpened || campaigns.reduce((sum, c) => sum + (c.opened || 0), 0)} emails ouverts
+                  </p>
                 </div>
                 <div className="p-2 sm:p-3 bg-blue-500/20 rounded-full flex-shrink-0">
                   <Eye className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-blue-400" />
@@ -450,7 +404,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Nouvelle métrique : Taux de clic moyen */}
+            {/* Taux de clic moyen calculé depuis les vraies données */}
             <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
@@ -459,12 +413,12 @@ export default function AdminDashboard() {
                     {isLoading ? (
                       <div className="animate-pulse bg-gray-600 h-8 w-12 rounded"></div>
                     ) : (
-                      campaigns.length > 0 
-                        ? `${Math.round(campaigns.reduce((sum, c) => sum + (c.clickRate || 0), 0) / campaigns.length)}%`
-                        : '0%'
+                      `${avgClickRate}%`
                     )}
                   </p>
-                  <p className="text-orange-400 text-xs sm:text-sm">Liens cliqués</p>
+                  <p className="text-orange-400 text-xs sm:text-sm">
+                    {dashboardStats.emailMetrics?.totalClicks || campaigns.reduce((sum, c) => sum + (c.totalClicks || 0), 0)} clics totaux
+                  </p>
                 </div>
                 <div className="p-2 sm:p-3 bg-orange-500/20 rounded-full flex-shrink-0">
                   <MousePointer className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-orange-400" />
@@ -475,6 +429,7 @@ export default function AdminDashboard() {
 
           {/* Actions Rapides */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+            <RoleGuard requiredRoles={['Admin', 'Manager']}>
             <button 
               onClick={() => window.location.href = '/campaign-wizard'}
               className="bg-gradient-to-r from-cyan-500 to-purple-600 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:from-cyan-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 group"
@@ -490,7 +445,9 @@ export default function AdminDashboard() {
               </div>
               <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
             </button>
+            </RoleGuard>
 
+            <RoleGuard requiredRoles={['Admin', 'Manager', 'Analyste']}>
             <button 
               onClick={() => navigate('/analytics')}
               className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
@@ -506,7 +463,9 @@ export default function AdminDashboard() {
               </div>
               <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
             </button>
-
+            </RoleGuard>
+            
+            <RoleGuard requiredRoles={['Admin']}>
             <button
               onClick={() => window.location.href = '/users'}
               className="bg-white/10 backdrop-blur-lg border border-white/20 text-white p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all duration-300 transform hover:scale-105 group"
@@ -522,6 +481,7 @@ export default function AdminDashboard() {
               </div>
               <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 ml-auto mt-2 group-hover:translate-x-1 transition-transform" />
             </button>
+            </RoleGuard>
             
             <button
               onClick={() => navigate('/learning-pages')}
@@ -541,23 +501,30 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
-            {/* Campagnes en Cours avec statistiques en temps réel */}
+            {/* Section Campagnes avec statistiques RÉELLES */}
             <div className="xl:col-span-2">
               <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">Campagnes</h2>
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-xl sm:text-2xl font-bold text-white">Campagnes</h2>
+                    {campaigns.length > 0 && (
+                      <span className="text-sm text-gray-400">
+                        ({campaigns.filter(c => c.sent > 0).length} avec tracking)
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center space-x-2">
                     {realTimeUpdates.length > 0 && (
                       <div className="flex items-center space-x-1 text-green-400 text-xs sm:text-sm">
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span>En direct</span>
+                        <span>Live</span>
                       </div>
                     )}
                     <button 
                       onClick={() => navigate('/analytics?view=campaigns')}
-                      className="text-cyan-400 hover:text-cyan-300 flex items-center space-x-2"
+                      className="text-cyan-400 hover:text-cyan-300 flex items-center space-x-2 text-sm sm:text-base"
                     >
-                      <span className="text-sm sm:text-base">Voir tout</span>
+                      <span>Voir tout</span>
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -565,7 +532,7 @@ export default function AdminDashboard() {
 
                 <div className="space-y-3 sm:space-y-4">
                   {isLoading ? (
-                    // Skeleton loader pour les campagnes
+                    // Skeleton loader
                     [...Array(3)].map((_, index) => (
                       <div key={index} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 animate-pulse">
                         <div className="flex items-center justify-between mb-3">
@@ -580,48 +547,103 @@ export default function AdminDashboard() {
                         <div className="bg-gray-600 h-2 w-full rounded-full"></div>
                       </div>
                     ))
+                  ) : campaigns.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Target className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                      <p className="text-gray-400">Aucune campagne trouvée</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Créez votre première campagne pour voir les statistiques
+                      </p>
+                    </div>
                   ) : (
-                    campaigns.map((campaign) => (
+                    campaigns.slice(0, 8).map((campaign) => (
                       <div key={campaign.id} className="bg-white/5 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-white/10 hover:bg-white/10 transition-colors">
                         <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">{campaign.name}</h3>
+                          <div className="flex items-center space-x-2 min-w-0 flex-1">
+                            <h3 className="text-base sm:text-lg font-semibold text-white truncate pr-2">
+                              {campaign.name}
+                            </h3>
+                            {campaign.hasTracking && (
+                              <div className="w-2 h-2 bg-green-400 rounded-full" title="Tracking actif" />
+                            )}
                           </div>
-                          <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
-                            campaign.status === 'active' 
-                              ? 'bg-green-500/20 text-green-400' 
-                              : campaign.status === 'error'
-                              ? 'bg-red-500/20 text-red-400'
-                              : 'bg-gray-500/20 text-gray-400'
-                          }`}>
-                            {campaign.status === 'active' ? 'Actif' : 
-                             campaign.status === 'error' ? 'Erreur' : 'Terminé'}
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            {campaign.hasHighClickRate && (
+                              <AlertTriangle className="w-4 h-4 text-orange-400" title="Taux de clic élevé" />
+                            )}
+                            <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
+                              campaign.status === 'active' 
+                                ? 'bg-green-500/20 text-green-400' 
+                                : campaign.status === 'error'
+                                ? 'bg-red-500/20 text-red-400'
+                                : campaign.status === 'draft'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {campaign.status === 'active' ? 'Actif' : 
+                               campaign.status === 'error' ? 'Erreur' :
+                               campaign.status === 'draft' ? 'Brouillon' : 'Terminé'}
+                            </span>
+                          </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
+                        {/* STATISTIQUES RÉELLES avec indicateurs visuels */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm mb-3">
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
-                            <span className="text-gray-300 truncate">{campaign.sent} envoyés</span>
+                            <span className="text-gray-300 truncate font-medium">
+                              {campaign.sent || 0} envoyés
+                            </span>
                           </div>
+                          
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
                             <span className="text-gray-300 truncate">
-                              {campaign.opened} ouverts
+                              {campaign.opened || 0} ouverts
                               {campaign.openRate > 0 && (
-                                <span className="text-green-400 ml-1">({campaign.openRate}%)</span>
+                                <span className={`ml-1 font-medium ${
+                                  campaign.openRate > 60 ? 'text-green-400' :
+                                  campaign.openRate < 20 ? 'text-red-400' : 'text-yellow-400'
+                                }`}>
+                                  ({campaign.openRate}%)
+                                </span>
                               )}
                             </span>
                           </div>
+                          
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <MousePointer className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400 flex-shrink-0" />
-                            <span className="text-gray-300 truncate">{campaign.totalClicks} clics</span>
+                            <span className="text-gray-300 truncate">
+                              {campaign.clicked || 0} clics
+                              {campaign.clickRate > 0 && (
+                                <span className={`ml-1 font-medium ${
+                                  campaign.clickRate > 15 ? 'text-red-400' :
+                                  campaign.clickRate > 5 ? 'text-orange-400' : 'text-green-400'
+                                }`}>
+                                  ({campaign.clickRate}%)
+                                </span>
+                              )}
+                            </span>
                           </div>
+                          
                           <div className="flex items-center space-x-1 sm:space-x-2">
                             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
                             <span className="text-gray-300 truncate">{formatDate(campaign.createdDate)}</span>
                           </div>
                         </div>
+
+                        {/* Barre de progression basée sur les ouvertures */}
+                        {campaign.sent > 0 && (
+                          <div className="w-full bg-gray-700 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                campaign.openRate > 60 ? 'bg-green-500' :
+                                campaign.openRate > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.min(campaign.openRate, 100)}%` }}
+                            ></div>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -635,8 +657,8 @@ export default function AdminDashboard() {
               {realTimeUpdates.length > 0 && (
                 <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
                   <h2 className="text-lg sm:text-xl font-bold text-white mb-4 flex items-center">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="ml-2">Temps Réel</span>
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2"></div>
+                    <span>Temps Réel</span>
                   </h2>
                   <div className="space-y-3">
                     {realTimeUpdates.slice(0, 5).map((update, index) => (
@@ -660,18 +682,25 @@ export default function AdminDashboard() {
               <div className="bg-white/10 backdrop-blur-lg rounded-xl sm:rounded-2xl border border-white/20 p-4 sm:p-6">
                 <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Activité Récente</h2>
                 <div className="space-y-3 sm:space-y-4">
-                  {recentActivity.map((activity, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                        activity.type === 'success' ? 'bg-green-400' :
-                        activity.type === 'warning' ? 'bg-orange-400' : 'bg-blue-400'
-                      }`}></div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-white text-xs sm:text-sm leading-relaxed">{activity.action}</p>
-                        <p className="text-gray-400 text-xs">{activity.time}</p>
-                      </div>
+                  {recentActivity.length === 0 ? (
+                    <div className="text-center py-6">
+                      <Activity className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                      <p className="text-gray-400 text-sm">Aucune activité récente</p>
                     </div>
-                  ))}
+                  ) : (
+                    recentActivity.slice(0, 8).map((activity, index) => (
+                      <div key={index} className="flex items-start space-x-3">
+                        <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                          activity.type === 'success' ? 'bg-green-400' :
+                          activity.type === 'warning' ? 'bg-orange-400' : 'bg-blue-400'
+                        }`}></div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-white text-xs sm:text-sm leading-relaxed">{activity.action}</p>
+                          <p className="text-gray-400 text-xs">{activity.time}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div> 

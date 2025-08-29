@@ -606,7 +606,7 @@ export default function Analytics() {
                         'bg-gray-500/20 text-gray-400'
                       }`}>
                         {campaign.status === 'running' ? 'En cours' : 
-                         campaign.status === 'completed' ? 'Terminée' : 'Draft'}
+                         campaign.status === 'completed' ? 'Terminée' : 'Terminer'}
                       </span>
                     </div>
                     

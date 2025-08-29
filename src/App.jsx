@@ -1,38 +1,90 @@
+// src/App.jsx
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
-import HomePage  from './pages/HomePage';
+import HomePage from './pages/HomePage';
 import UsersPage from './pages/UsersPage';
 import CampaignWizard from './pages/CampaignWizard';
 import LearningPagesManagement from './pages/LearningPagesManagement';
 import TrainingView from './pages/TrainingView';
-import Analytics from './pages/Analytics'; 
+import Analytics from './pages/Analytics';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function App() {
   return (
     <BrowserRouter>
-     <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-      />
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/campaign-wizard" element={<CampaignWizard />} />
-        <Route path="/learning-pages" element={<LearningPagesManagement />} />
-        <Route path="/training/:campaignId" element={<TrainingView />} />
-        <Route path="/analytics" element={<Analytics />} /> 
-
-        {/* Ajoutez d'autres routes ici si nécessaire */}
-
-      </Routes>
+      <AuthProvider>
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnHover
+          draggable
+        />
+        <Routes>
+          {/* Route publique */}
+          <Route path="/" element={<LoginPage />} />
+          
+          {/* Routes protégées */}
+          <Route 
+            path="/home" 
+            element={
+              <ProtectedRoute requiredRoles={['Admin', 'Manager', 'Analyste']}>
+                <HomePage />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/users" 
+            element={
+              <ProtectedRoute requiredRoles={['Admin']}>
+                <UsersPage />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/campaign-wizard" 
+            element={
+              <ProtectedRoute requiredRoles={['Admin', 'Manager']}>
+                <CampaignWizard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/learning-pages" 
+            element={
+              <ProtectedRoute requiredRoles={['Admin', 'Manager', 'Analyste']}>
+                <LearningPagesManagement />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/analytics" 
+            element={
+              <ProtectedRoute requiredRoles={['Admin', 'Manager', 'Analyste']}>
+                <Analytics />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/training/:campaignId" 
+            element={
+              <ProtectedRoute requiredRoles={['Admin', 'Manager', 'Analyste', 'Cible']}>
+                <TrainingView />
+              </ProtectedRoute>
+            } 
+          />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

@@ -1,9 +1,12 @@
+//src/pages/UsersPage.jsx
 import { useEffect, useState } from 'react';
 import {
   Users, Search, Plus, Edit, Trash2, Mail, Shield, UserCheck, UserX,
   ChevronLeft, ChevronRight, Filter, Bell, Menu, X, Save, XCircle,
-  AlertCircle, CheckCircle, Eye, Loader2
-} from 'lucide-react'; // Added Loader2 for submitting state
+  AlertCircle, CheckCircle, Eye, Loader2, EyeOff
+} from 'lucide-react';
+import client from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function FullScreenUsersPage() {
   const [users, setUsers] = useState([]);
@@ -18,107 +21,83 @@ export default function FullScreenUsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); // New state for delete confirmation
-  const [userToDeleteId, setUserToDeleteId] = useState(null); // New state to store ID of user to delete
-  const [modalFormData, setModalFormData] = useState({ // New state for modal form data
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [userToDeleteId, setUserToDeleteId] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [modalFormData, setModalFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     role: 'User',
     status: 'active',
   });
 
-  const perPage = 12;
-  // This URL should be adjusted based on your actual backend API endpoint.
-  // For a real application, consider using environment variables for this.
-  const API_BASE_URL = 'http://localhost:3000/api'; 
+  const { user: currentUser } = useAuth();
+  const perPage = 12; 
 
   /**
-   * Generic API call function.
-   * Handles GET, POST, PUT, DELETE requests and error handling.
-   * @param {string} method - HTTP method (GET, POST, PUT, DELETE).
-   * @param {string} endpoint - API endpoint (e.g., '/users', '/users/123').
-   * @param {object} data - Request body data (for POST, PUT).
-   * @returns {Promise<object>} - JSON response from the API.
-   */
-  const apiCall = async (method, endpoint, data = null) => {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const options = {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-    };
-    if (data) options.body = JSON.stringify(data);
-
-    try {
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur ${response.status}`);
-      }
-      return response.json();
-    } catch (err) {
-      console.error('API Call Error:', err);
-      throw err; // Re-throw to be caught by the calling function
-    }
-  };
-
-  /**
-   * Fetches the list of users from the API.
-   * Updates loading, error, and users states.
+   * Fetches the list of users from the API using the configured client.
    */
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      setError(''); // Clear global error on new fetch
-      const data = await apiCall('GET', '/users');
-      setUsers(data);
+      setError('');
+      const response = await client.get('/users');
+      setUsers(response.data);
     } catch (err) {
-      setError('Impossible de charger les utilisateurs: ' + err.message);
+      console.error('Fetch users error:', err);
+      if (err.response?.status === 403) {
+        setError('Accès refusé. Vous n\'avez pas les permissions nécessaires pour consulter les utilisateurs.');
+      } else if (err.response?.status === 401) {
+        setError('Session expirée. Veuillez vous reconnecter.');
+      } else {
+        setError('Impossible de charger les utilisateurs: ' + (err.response?.data?.message || err.message));
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }; 
 
-  // Effect to fetch users on component mount
-  useEffect(() => {
+  useEffect(() => { 
     fetchUsers();
-  }, []);
-
-  // Effect to clear success message after a delay
+  }, []); 
+ 
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => setSuccess(''), 3000);
       return () => clearTimeout(timer);
     }
   }, [success]);
-
-  // Effect to clear error message after a delay
+ 
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(''), 5000);
       return () => clearTimeout(timer);
     }
   }, [error]);
-
-  // Effect to update modal form data when editData changes (e.g., when editing an existing user)
+ 
   useEffect(() => {
     if (showModal) {
-      setModalFormData(editData || {
+      setModalFormData(editData ? {
+        ...editData,
+        password: '' // Toujours vide pour la sécurité
+      } : {
         firstName: '',
         lastName: '',
         email: '',
+        password: '',
         role: 'User',
         status: 'active',
-      });
-      // Clear messages when modal opens
+      }); 
       setError('');
       setSuccess('');
+      setShowPassword(false);
     }
   }, [editData, showModal]);
 
   /**
-   * Filters the user list based on search term, role, and status.
-   * @type {Array<object>}
+   * Filters the user list based on search term, role, and status. 
    */
   const filtered = users.filter(u => {
     const matchesSearch = u.firstName.toLowerCase().includes(filter.toLowerCase()) ||
@@ -132,60 +111,66 @@ export default function FullScreenUsersPage() {
   const total = filtered.length;
   const pages = Math.ceil(total / perPage);
   const displayed = filtered.slice((page - 1) * perPage, page * perPage);
-
-  /**
-   * Handles the initiation of user deletion.
-   * Shows a custom confirmation modal.
-   * @param {string} id - The ID of the user to delete.
-   */
+ 
   const handleDeleteInitiate = (id) => {
     setUserToDeleteId(id);
     setShowDeleteConfirmModal(true);
   };
-
-  /**
-   * Confirms and performs the user deletion.
-   */
+ 
   const handleDeleteConfirm = async () => {
     try {
       setError('');
-      await apiCall('DELETE', `/users/${userToDeleteId}`);
+      await client.delete(`/users/${userToDeleteId}`);
       setUsers(prev => prev.filter(u => u._id !== userToDeleteId));
       setSuccess('Utilisateur supprimé avec succès');
     } catch (err) {
-      setError('Erreur lors de la suppression: ' + err.message);
+      console.error('Delete user error:', err);
+      if (err.response?.status === 403) {
+        setError('Accès refusé. Vous n\'avez pas les permissions pour supprimer cet utilisateur.');
+      } else if (err.response?.status === 404) {
+        setError('Utilisateur non trouvé.');
+      } else {
+        setError('Erreur lors de la suppression: ' + (err.response?.data?.message || err.message));
+      }
     } finally {
-      setShowDeleteConfirmModal(false); // Close the confirmation modal
-      setUserToDeleteId(null); // Clear the ID
+      setShowDeleteConfirmModal(false);
+      setUserToDeleteId(null);
     }
   };
 
-  /**
-   * Handles the submission of the user form (create or update).
-   * @param {object} data - The user data from the form.
-   */
-  const handleSubmit = async () => {
-    // Clear previous modal-specific error/success messages
+  const handleSubmit = async () => { 
     setError('');
     setSuccess('');
 
-    // Basic client-side validation
+    // Validation côté client
     if (!modalFormData.firstName || !modalFormData.lastName || !modalFormData.email) {
       setError('Tous les champs requis doivent être remplis.');
       return;
     }
 
-    // Email format validation
+    // Validation mot de passe pour création
+    if (!editData && !modalFormData.password) {
+      setError('Le mot de passe est requis pour créer un utilisateur.');
+      return;
+    }
+
+    // Validation mot de passe si fourni
+    if (modalFormData.password && modalFormData.password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+
+    // Validation email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(modalFormData.email)) {
       setError('Le format de l\'e-mail est incorrect. Veuillez entrer un e-mail valide.');
       return;
     }
 
-    // Email uniqueness validation
+    // Validation unicité email
     const isDuplicateEmail = users.some(user => 
       user.email === modalFormData.email && 
-      (editData ? user._id !== editData._id : true) // Allow existing user's own email during edit
+      (editData ? user._id !== editData._id : true)
     );
 
     if (isDuplicateEmail) {
@@ -195,73 +180,71 @@ export default function FullScreenUsersPage() {
 
     try {
       setSubmitting(true);
+      const submitData = { ...modalFormData };
+      
+      // Si pas de mot de passe pour modification, on l'enlève
+      if (editData && !modalFormData.password) {
+        delete submitData.password;
+      }
+
       if (editData && editData._id) {
-        // Update existing user
-        const updatedUser = await apiCall('PUT', `/users/${editData._id}`, modalFormData);
-        setUsers(prev => prev.map(u => u._id === editData._id ? updatedUser.user : u));
+        // Mise à jour utilisateur existant
+        const response = await client.put(`/users/${editData._id}`, submitData);
+        setUsers(prev => prev.map(u => u._id === editData._id ? response.data.user : u));
         setSuccess('Utilisateur modifié avec succès');
       } else {
-        // Create new user (add a default password for new users as per original logic)
-        const newUserData = { ...modalFormData, password: 'TempPassword123!' };
-        await apiCall('POST', '/users', newUserData);
-        await fetchUsers(); // Re-fetch all users to get the newly added user and their correct _id
+        // Création nouvel utilisateur
+        await client.post('/users', submitData);
+        await fetchUsers();
         setSuccess('Utilisateur créé avec succès');
       }
       setShowModal(false);
       setEditData(null);
     } catch (err) {
-      setError('Erreur lors de la sauvegarde: ' + err.message);
+      console.error('Submit user error:', err);
+      if (err.response?.status === 403) {
+        setError('Accès refusé. Vous n\'avez pas les permissions pour effectuer cette action.');
+      } else if (err.response?.status === 400) {
+        const backendErrors = err.response?.data?.errors;
+        if (backendErrors && Array.isArray(backendErrors)) {
+          setError(backendErrors.map(e => e.msg).join(', '));
+        } else {
+          setError(err.response?.data?.message || 'Données invalides.');
+        }
+      } else {
+        setError('Erreur lors de la sauvegarde: ' + (err.response?.data?.message || err.message));
+      }
     } finally {
       setSubmitting(false);
     }
   };
-
-  /**
-   * Returns Tailwind CSS classes for user status badges.
-   * @param {string} status - The user's status.
-   * @returns {string} - Tailwind CSS classes.
-   */
+ 
   const getStatusColor = (status) => {
     switch (status) {
       case 'active': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'inactive': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'suspended': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      case 'pending': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'; // Added pending status style
+      case 'inactive': return 'bg-red-500/20 text-red-400 border-red-500/30'; 
       default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
     }
-  };
-
-  /**
-   * Returns a Lucide icon component based on user role.
-   * @param {string} role - The user's role.
-   * @returns {React.Component} - Lucide icon component.
-   */
+  }; 
+ 
   const getRoleIcon = (role) => {
     switch (role) {
       case 'Admin': return <Shield className="w-4 h-4 text-purple-400" />;
       case 'Manager': return <UserCheck className="w-4 h-4 text-blue-400" />;
       case 'Analyste': return <Eye className="w-4 h-4 text-cyan-400" />;
-      case 'Cible': return <Users className="w-4 h-4 text-rose-400" />; // Added Cible role
+      case 'Cible': return <Users className="w-4 h-4 text-rose-400" />;
       default: return <Users className="w-4 h-4 text-gray-400" />;
     }
   };
-
-  /**
-   * Returns a human-readable label for user status.
-   * @param {string} status - The user's status.
-   * @returns {string} - Translated status label.
-   */
+ 
   const getStatusLabel = (status) => {
     switch (status) {
       case 'active': return 'Actif';
-      case 'inactive': return 'Inactif';
-      case 'suspended': return 'Suspendu';
-      case 'pending': return 'En attente';
+      case 'inactive': return 'Inactif'; 
       default: return status;
     }
   };
-
-  // Pre-define Tailwind classes for stats cards to avoid JIT issues
+ 
   const statCardClasses = {
     cyan: {
       bgColor: 'bg-cyan-500/20',
@@ -275,35 +258,40 @@ export default function FullScreenUsersPage() {
     },
     red: {
       bgColor: 'bg-red-500/20',
-      textColor: 'text-red-400',
-      iconColor: 'text-red-400'
-    },
-    orange: {
-      bgColor: 'bg-orange-500/20',
-      textColor: 'text-orange-400',
-      iconColor: 'text-orange-400'
+      textColor: 'text-red-400', 
+      iconColor: 'text-red-400' 
     }
   };
 
   const stats = {
     total: users.length,
     active: users.filter(u => u.status === 'active').length,
-    inactive: users.filter(u => u.status === 'inactive').length,
-    suspended: users.filter(u => u.status === 'suspended').length,
-    pending: users.filter(u => u.status === 'pending').length // Added pending stat
+    inactive: users.filter(u => u.status === 'inactive').length
   };
+
+  if (currentUser && currentUser.role !== 'Admin') {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="text-center p-8 bg-white/10 backdrop-blur-lg rounded-xl border border-white/20">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Accès Refusé</h2>
+          <p className="text-gray-300">Seuls les administrateurs peuvent accéder à la gestion des utilisateurs.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden font-inter">
-      {/* Notifications - These are now global, but specific modal errors will be handled in modal */}
-      {success && !showModal && ( // Only show global success if modal is not open
+      {/* Notifications */}
+      {success && !showModal && (
         <div className="fixed top-4 right-4 z-50 bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg flex items-center space-x-2 backdrop-blur-lg animate-fade-in-down">
           <CheckCircle className="w-4 h-4" />
           <span className="text-sm">{success}</span>
         </div>
       )}
       
-      {error && !showModal && ( // Only show global error if modal is not open
+      {error && !showModal && (
         <div className="fixed top-4 right-4 z-50 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg flex items-center space-x-2 backdrop-blur-lg animate-fade-in-down">
           <AlertCircle className="w-4 h-4" />
           <span className="text-sm">{error}</span>
@@ -337,7 +325,9 @@ export default function FullScreenUsersPage() {
               <Bell className="w-5 h-5 text-gray-300 hover:text-white cursor-pointer transition-colors duration-200" />
               <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">2</span>
             </div>
-            <div className="w-8 h-8 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">A</div>
+            <div className="w-8 h-8 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+              {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
+            </div>
           </div>
 
           <div className="md:hidden">
@@ -358,15 +348,16 @@ export default function FullScreenUsersPage() {
                 onChange={e => { setFilter(e.target.value); setPage(1); }}
                 className="pl-10 pr-4 py-2 w-full bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm transition-colors duration-200"
               />
-            </div>
-            {/* Additional mobile menu items can go here */}
+            </div> 
             <div className="flex items-center justify-between text-gray-300 px-2 py-2 border-t border-white/10 pt-4">
               <div className="flex items-center space-x-2">
                 <Bell className="w-5 h-5" />
                 <span>Notifications</span>
                 <span className="bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center ml-2">2</span>
               </div>
-              <div className="w-8 h-8 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">A</div>
+              <div className="w-8 h-8 bg-gradient-to-r from-cyan-400 to-purple-400 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                {currentUser?.firstName?.[0]}{currentUser?.lastName?.[0]}
+              </div>
             </div>
           </div>
         )}
@@ -375,12 +366,11 @@ export default function FullScreenUsersPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-auto p-6 md:p-10 z-10">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
           {[
             { label: 'Total', value: stats.total, icon: Users, color: 'cyan' },
             { label: 'Actifs', value: stats.active, icon: UserCheck, color: 'green' },
-            { label: 'Inactifs', value: stats.inactive, icon: UserX, color: 'red' },
-            { label: 'Suspendus', value: stats.suspended, icon: UserX, color: 'orange' }
+            { label: 'Inactifs', value: stats.inactive, icon: UserX, color: 'red' }
           ].map((stat, i) => (
             <div key={i} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-4 shadow-lg hover:shadow-cyan-500/20 transition-shadow duration-300">
               <div className="flex items-center justify-between">
@@ -397,13 +387,12 @@ export default function FullScreenUsersPage() {
         </div>
 
         {/* Controls */}
-        <div className="bg-slate-800/70 backdrop-blur-lg rounded-xl border border-white/20 p-4 mb-6 shadow-lg"> {/* Changed background to bg-slate-800/70 */}
+        <div className="bg-slate-800/70 backdrop-blur-lg rounded-xl border border-white/20 p-4 mb-6 shadow-lg">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
               <select
-                value={roleFilter}
-                onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
-                // Changed background to bg-slate-700 for better visibility of options
+                value={roleFilter} 
+                onChange={e => { setRoleFilter(e.target.value); setPage(1); }} 
                 className="px-4 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm w-full sm:w-auto"
               >
                 <option value="" className="bg-slate-700 text-white">Tous les rôles</option>
@@ -414,16 +403,13 @@ export default function FullScreenUsersPage() {
               </select>
 
               <select
-                value={statusFilter}
-                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                // Changed background to bg-slate-700 for better visibility of options
+                value={statusFilter} 
+                onChange={e => { setStatusFilter(e.target.value); setPage(1); }} 
                 className="px-4 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 text-sm w-full sm:w-auto"
               >
                 <option value="" className="bg-slate-700 text-white">Tous les statuts</option>
                 <option value="active" className="bg-slate-700 text-white">Actif</option>
-                <option value="inactive" className="bg-slate-700 text-white">Inactif</option>
-                <option value="suspended" className="bg-slate-700 text-white">Suspendu</option>
-                <option value="pending" className="bg-slate-700 text-white">En attente</option>
+                <option value="inactive" className="bg-slate-700 text-white">Inactif</option> 
               </select>
             </div>
 
@@ -565,7 +551,7 @@ export default function FullScreenUsersPage() {
       {/* User Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-slate-800/90 backdrop-blur-lg rounded-2xl border border-white/20 w-full max-w-md shadow-xl animate-scale-in relative"> {/* Added relative positioning */}
+          <div className="bg-slate-800/90 backdrop-blur-lg rounded-2xl border border-white/20 w-full max-w-md shadow-xl animate-scale-in relative">
             
             {/* Modal-specific Notifications */}
             {success && (
@@ -624,12 +610,33 @@ export default function FullScreenUsersPage() {
                   className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
                 />
 
+                {/* Champ mot de passe avec bouton voir/cacher */}
+                <div className="relative">
+                  <input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={modalFormData.password}
+                    onChange={(e) => setModalFormData({ ...modalFormData, password: e.target.value })}
+                    placeholder={editData ? "Nouveau mot de passe (laisser vide pour ne pas changer)" : "Mot de passe *"}
+                    className="w-full px-3 py-2 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {!editData && (
+                  <p className="text-xs text-gray-400 -mt-2">Le mot de passe doit contenir au moins 6 caractères</p>
+                )}
+
                 <select
                   name="role"
                   required
                   value={modalFormData.role}
-                  onChange={(e) => setModalFormData({ ...modalFormData, role: e.target.value })}
-                  // Changed background to bg-slate-700 for better visibility of options
+                  onChange={(e) => setModalFormData({ ...modalFormData, role: e.target.value })} 
                   className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
                 >
                   <option value="User" className="bg-slate-700 text-white">User</option>
@@ -643,14 +650,11 @@ export default function FullScreenUsersPage() {
                   name="status"
                   required
                   value={modalFormData.status}
-                  onChange={(e) => setModalFormData({ ...modalFormData, status: e.target.value })}
-                  // Changed background to bg-slate-700 for better visibility of options
+                  onChange={(e) => setModalFormData({ ...modalFormData, status: e.target.value })} 
                   className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-colors duration-200"
-                >
-                  <option value="active" className="bg-slate-700 text-white">Actif</option>
-                  <option value="inactive" className="bg-slate-700 text-white">Inactif</option>
-                  <option value="suspended" className="bg-slate-700 text-white">Suspendu</option>
-                  <option value="pending" className="bg-slate-700 text-white">En attente</option>
+                >  
+                  <option value="active" className="bg-slate-700 text-white">Actif</option>  
+                  <option value="inactive" className="bg-slate-700 text-white">Inactif</option> 
                 </select>
 
                 <div className="flex justify-end space-x-3 pt-4">
