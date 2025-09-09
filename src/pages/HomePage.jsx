@@ -507,11 +507,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
                   <div className="flex items-center space-x-2">
                     <h2 className="text-xl sm:text-2xl font-bold text-white">Campagnes</h2>
-                    {campaigns.length > 0 && (
-                      <span className="text-sm text-gray-400">
-                        ({campaigns.filter(c => c.sent > 0).length} avec tracking)
-                      </span>
-                    )}
+                    
                   </div>
                   <div className="flex items-center space-x-2">
                     {realTimeUpdates.length > 0 && (

@@ -746,16 +746,7 @@ const handleLaunchCampaign = async () => {
                 <h3 className="text-xl font-bold text-green-400">Prêt pour le Lancement</h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Target className="w-4 h-4 text-cyan-400" />
-                    <span className="text-sm text-cyan-400 font-medium">Cibles</span>
-                  </div>
-                  <p className="text-2xl font-bold text-white">{campaignData?.targets?.length || 0}</p>
-                  <p className="text-xs text-gray-400">destinataires configurés</p>
-                </div>
-                
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="bg-white/5 rounded-lg p-4">
                   <div className="flex items-center space-x-2 mb-2">
                     <Calendar className="w-4 h-4 text-purple-400" />

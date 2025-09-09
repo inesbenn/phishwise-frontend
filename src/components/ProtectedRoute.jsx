@@ -26,3 +26,4 @@ const ProtectedRoute = ({ children, requiredRoles = [], redirectTo = '/' }) => {
 };
 
 export default ProtectedRoute;
+

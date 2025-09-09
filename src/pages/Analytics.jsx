@@ -113,7 +113,7 @@ export default function Analytics() {
   // États de l'interface
   const [selectedCampaign, setSelectedCampaign] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: 'averageScore', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'totalFormationsCompleted', direction: 'desc' });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState('overview');
@@ -295,8 +295,7 @@ export default function Analytics() {
       name: campaign.name.length > 20 ? campaign.name.substring(0, 20) + '...' : campaign.name,
       totalUsers: campaign.totalUsers,
       completed: campaign.completedUsers,
-      completionRate: campaign.completionRate,
-      averageScore: campaign.averageScore
+      completionRate: campaign.completionRate
     }));
   };
 
@@ -432,9 +431,9 @@ export default function Analytics() {
                     color: 'text-green-400'
                   },
                   {
-                    title: 'Score Moyen',
-                    value: `${data.overview.averageScore || 0}%`,
-                    change: '+3%',
+                    title: 'Badges Gagnés',
+                    value: `${data.overview.badgesEarned || 0}`,
+                    change: '+12%',
                     subtext: 'ce mois',
                     icon: Award,
                     color: 'text-purple-400'
@@ -442,8 +441,8 @@ export default function Analytics() {
                   {
                     title: 'Temps Total',
                     value: `${data.overview.totalTimeSpent || 0}h`,
-                    change: `${data.overview.badgesEarned || 0}`,
-                    subtext: 'badges gagnés',
+                    change: `${data.overview.activeUsers || 0}`,
+                    subtext: 'utilisateurs actifs',
                     icon: Clock,
                     color: 'text-orange-400'
                   }
@@ -610,14 +609,10 @@ export default function Analytics() {
                       </span>
                     </div>
                     
-                    <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
                         <p className="text-gray-300 text-sm">Progression</p>
                         <p className="text-white text-xl font-semibold">{campaign.averageProgress || 0}%</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-300 text-sm">Score moyen</p>
-                        <p className="text-white text-xl font-semibold">{campaign.averageScore || 0}%</p>
                       </div>
                       <div>
                         <p className="text-gray-300 text-sm">Taux completion</p>
@@ -649,7 +644,6 @@ export default function Analytics() {
                             <span className="text-gray-300">{formation.name}</span>
                             <div className="flex items-center space-x-2">
                               <span className="text-green-400">{formation.completion}%</span>
-                              <span className="text-blue-400">({formation.avgScore}%)</span>
                             </div>
                           </div>
                         ))
@@ -728,7 +722,6 @@ export default function Analytics() {
                           { key: 'position', label: 'Poste' },
                           { key: 'office', label: 'Bureau' },
                           { key: 'totalFormationsCompleted', label: 'Formations' },
-                          { key: 'averageScore', label: 'Score Moyen' },
                           { key: 'totalTimeSpentMinutes', label: 'Temps' },
                           { key: 'totalBadgesEarned', label: 'Badges' },
                           { key: 'lastActivity', label: 'Dernière Activité' }
@@ -788,16 +781,6 @@ export default function Analytics() {
                                   }}
                                 />
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <div className="flex items-center">
-                              <span className="text-white font-medium">{Math.round(user.averageScore || 0)}%</span>
-                              <div className={`ml-2 w-2 h-2 rounded-full ${
-                                (user.averageScore || 0) >= 80 ? 'bg-green-500' :
-                                (user.averageScore || 0) >= 60 ? 'bg-yellow-500' : 
-                                (user.averageScore || 0) > 0 ? 'bg-red-500' : 'bg-gray-500'
-                              }`} />
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
@@ -913,7 +896,7 @@ export default function Analytics() {
                 </div>
 
                 {/* Statistiques détaillées de l'utilisateur */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   <div className="bg-white/5 rounded-lg p-3 text-center">
                     <p className="text-cyan-400 text-xl font-bold">{selectedUser.totalFormationsStarted || 0}</p>
                     <p className="text-gray-300 text-xs">Commencées</p>
@@ -921,10 +904,6 @@ export default function Analytics() {
                   <div className="bg-white/5 rounded-lg p-3 text-center">
                     <p className="text-green-400 text-xl font-bold">{selectedUser.totalFormationsCompleted || 0}</p>
                     <p className="text-gray-300 text-xs">Terminées</p>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-3 text-center">
-                    <p className="text-purple-400 text-xl font-bold">{Math.round(selectedUser.averageScore || 0)}%</p>
-                    <p className="text-gray-300 text-xs">Score Moyen</p>
                   </div>
                   <div className="bg-white/5 rounded-lg p-3 text-center">
                     <p className="text-orange-400 text-xl font-bold">{formatTime(selectedUser.totalTimeSpentMinutes || selectedUser.totalTimeSpent || 0)}</p>
@@ -997,20 +976,11 @@ export default function Analytics() {
                             />
                           </div>
                           
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <span className="text-gray-300">Score: </span>
-                              <span className="text-white font-medium">
-                                {formation.bestScore ? `${Math.round(formation.bestScore)}%` : 
-                                 formation.averageScore ? `${Math.round(formation.averageScore)}%` : '-'}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-gray-300">Temps passé: </span>
-                              <span className="text-white font-medium">
-                                {formatTime(formation.timeSpent || 0)}
-                              </span>
-                            </div>
+                          <div className="text-xs">
+                            <span className="text-gray-300">Temps passé: </span>
+                            <span className="text-white font-medium">
+                              {formatTime(formation.timeSpent || 0)}
+                            </span>
                           </div>
                           
                           {/* Nombre de modules */}
