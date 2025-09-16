@@ -9,6 +9,7 @@ import CampaignWizard from './pages/CampaignWizard';
 import LearningPagesManagement from './pages/LearningPagesManagement';
 import TrainingView from './pages/TrainingView';
 import Analytics from './pages/Analytics';
+import URLScanner from './components/URLScanner'; // 🆕 Import du nouveau composant
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -80,6 +81,16 @@ export default function App() {
             element={
               <ProtectedRoute requiredRoles={['Admin', 'Manager', 'Analyste', 'Cible']}>
                 <TrainingView />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* 🆕 NOUVELLE ROUTE : Scanner d'URL */}
+          <Route 
+            path="/url-scanner" 
+            element={
+              <ProtectedRoute requiredRoles={['Admin', 'Manager', 'Analyste', 'Cible']}>
+                <URLScanner />
               </ProtectedRoute>
             } 
           />

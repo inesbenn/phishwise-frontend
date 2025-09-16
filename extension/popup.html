@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Security Scanner</title>
+    <link rel="stylesheet" href="styles/popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-icon">🛡️</div>
+            <div class="header-title">Security Scanner</div>
+        </div>
+
+        <!-- Status Section -->
+        <div class="status-section" id="statusSection">
+            <div class="status-icon" id="statusIcon">🔄</div>
+            <div class="status-text" id="statusText">Analyse en cours...</div>
+            <div class="url-display" id="urlDisplay">Chargement...</div>
+        </div>
+
+        <!-- Scan Details -->
+        <div class="scan-details" id="scanDetails" style="display: none;">
+            <div class="scan-score">
+                <span>Score de Risque: </span>
+                <strong id="riskScore">0%</strong>
+            </div>
+            
+            <div class="threat-alert" id="threatAlert" style="display: none;">
+                <div class="threat-title">⚠️ Menaces Détectées:</div>
+                <div class="threat-list" id="threatList"></div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions-section">
+            <button class="action-btn primary" id="reanalyzeBtn">Réanalyser</button>
+            <button class="action-btn danger" id="backBtn" style="display: none;">Retour Sécurisé</button>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-text">Protected by Security Scanner</div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

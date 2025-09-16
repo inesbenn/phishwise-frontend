@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACCÈS BLOQUÉ - Site Malveillant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='m36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+            opacity: 0.3;
+            z-index: -1;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.98);
+            color: #1f2937;
+            padding: 60px;
+            border-radius: 24px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
+            text-align: center;
+            max-width: 800px;
+            margin: 20px;
+            position: relative;
+            animation: slideInScale 0.6s ease-out;
+            border: 4px solid #dc2626;
+        }
+
+        @keyframes slideInScale {
+            0% {
+                opacity: 0;
+                transform: translateY(30px) scale(0.9);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+            20%, 40%, 60%, 80% { transform: translateX(3px); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(1.1); opacity: 1; }
+        }
+
+        .danger-icon {
+            font-size: 120px;
+            margin-bottom: 30px;
+            animation: pulse 1.5s ease-in-out infinite alternate;
+            display: block;
+            text-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+        }
+
+        .title {
+            font-size: 52px;
+            font-weight: 900;
+            color: #dc2626;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 2px 2px 4px rgba(220, 38, 38, 0.2);
+            animation: shake 0.8s ease-in-out;
+        }
+
+        .subtitle {
+            font-size: 32px;
+            font-weight: 700;
+            color: #991b1b;
+            margin-bottom: 40px;
+            text-shadow: 1px 1px 2px rgba(153, 27, 27, 0.2);
+        }
+
+        .url-box {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            border: 4px solid #dc2626;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 40px 0;
+            box-shadow: 0 10px 30px rgba(220, 38, 38, 0.2);
+        }
+
+        .url-label {
+            font-weight: 700;
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #dc2626;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .blocked-url {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            color: #dc2626;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 3px solid #dc2626;
+            word-break: break-all;
+            box-shadow: inset 0 2px 4px rgba(220, 38, 38, 0.1);
+        }
+
+        .warning-text {
+            font-size: 22px;
+            margin: 40px 0;
+            line-height: 1.6;
+            color: #374151;
+            background: #f8fafc;
+            padding: 30px;
+            border-radius: 16px;
+            border-left: 6px solid #dc2626;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .warning-text strong {
+            color: #dc2626;
+            font-weight: 800;
+        }
+
+        .details {
+            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            border-radius: 20px;
+            padding: 35px;
+            margin: 40px 0;
+            text-align: left;
+            border: 3px solid #d1d5db;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .details h3 {
+            color: #dc2626;
+            margin-bottom: 20px;
+            font-size: 22px;
+            font-weight: 800;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .details ul {
+            color: #374151;
+            line-height: 2;
+            font-size: 16px;
+            padding-left: 30px;
+        }
+
+        .details li {
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .details li::marker {
+            content: "⚠️ ";
+        }
+
+        .actions {
+            display: flex;
+            gap: 25px;
+            justify-content: center;
+            margin-top: 50px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 20px 40px;
+            font-size: 18px;
+            font-weight: 700;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-width: 200px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-safe {
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white;
+            border: 2px solid transparent;
+        }
+
+        .btn-safe:hover {
+            background: linear-gradient(135deg, #047857, #065f46);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(5, 150, 105, 0.4);
+        }
+
+        .btn-close {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+            border: 2px solid transparent;
+        }
+
+        .btn-close:hover {
+            background: linear-gradient(135deg, #4b5563, #374151);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(107, 114, 128, 0.4);
+        }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 40px;
+            border-top: 3px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .footer p {
+            margin-bottom: 8px;
+        }
+
+        .footer strong {
+            color: #374151;
+            font-weight: 700;
+        }
+
+        .status-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #dc2626;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 1000;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 40px 30px;
+                margin: 10px;
+                border-radius: 16px;
+            }
+
+            .title {
+                font-size: 36px;
+                letter-spacing: 2px;
+            }
+
+            .subtitle {
+                font-size: 24px;
+            }
+
+            .danger-icon {
+                font-size: 80px;
+            }
+
+            .actions {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="status-indicator">
+        SITE BLOQUÉ
+    </div>
+
+    <div class="container">
+        <div class="danger-icon">🛡️</div>
+        <h1 class="title">ACCÈS BLOQUÉ</h1>
+        <h2 class="subtitle">Site Web Malveillant Détecté</h2>
+        
+        <div class="url-box">
+            <div class="url-label">URL BLOQUÉE :</div>
+            <div class="blocked-url" id="blockedUrl">URL en cours de chargement...</div>
+        </div>
+        
+        <div class="warning-text">
+            <strong>⚠️ DANGER IMMINENT :</strong> Cette page a été identifiée comme malveillante par notre système de sécurité avancé. L'accès a été immédiatement bloqué pour protéger votre sécurité, vos données personnelles et votre appareil contre les menaces potentielles.
+        </div>
+        
+        <div class="details">
+            <h3>🚨 Menaces détectées :</h3>
+            <ul id="threatsList">
+                <li>Site identifié comme potentiellement malveillant</li>
+                <li>Risque de vol de données personnelles</li>
+                <li>Possibles tentatives de phishing ou d'escroquerie</li>
+                <li>Contenu suspect ou malveillant détecté</li>
+            </ul>
+        </div>
+        
+        <div class="actions">
+            <button class="btn btn-safe" onclick="goBack()">
+                🔒 RETOUR SÉCURISÉ
+            </button>
+            <button class="btn btn-close" onclick="closeTab()">
+                ❌ FERMER L'ONGLET
+            </button>
+        </div>
+        
+        <div class="footer">
+            <p><strong>🛡️ Protégé par URL Security Scanner</strong></p>
+            <p>Cette protection automatique vous évite d'accéder à des contenus dangereux</p>
+            <p>Version 1.0.0 - Système de protection en temps réel</p>
+        </div>
+    </div>
+    
+    <script>
+        // Extraire les paramètres de l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const blockedUrl = urlParams.get('url');
+        const reason = urlParams.get('reason');
+        const timestamp = urlParams.get('timestamp');
+
+        // Afficher l'URL bloquée
+        if (blockedUrl) {
+            document.getElementById('blockedUrl').textContent = decodeURIComponent(blockedUrl);
+            document.title = `ACCÈS BLOQUÉ - ${new URL(decodeURIComponent(blockedUrl)).hostname}`;
+        }
+
+        // Fonctions de navigation
+        function goBack() {
+            try {
+                // Essayer de retourner à la page précédente
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    // Si pas d'historique, aller vers une page sûre
+                    window.location.href = 'https://www.google.com';
+                }
+            } catch (e) {
+                console.error('Erreur retour:', e);
+                try {
+                    window.close();
+                } catch (closeError) {
+                    window.location.href = 'https://www.google.com';
+                }
+            }
+        }
+        
+        function closeTab() {
+            try {
+                window.close();
+            } catch (e) {
+                console.error('Impossible de fermer l\'onglet:', e);
+                // Fallback: rediriger vers une page vide
+                window.location.href = 'about:blank';
+            }
+        }
+        
+        // Empêcher la navigation accidentelle
+        window.addEventListener('beforeunload', function(e) {
+            const message = 'Site bloqué pour votre sécurité. Êtes-vous sûr de vouloir quitter cette page de protection ?';
+            e.returnValue = message;
+            return message;
+        });
+        
+        // Désactiver le clic droit et certains raccourcis
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+
+        document.addEventListener('keydown', function(e) {
+            // Bloquer F12, Ctrl+Shift+I, etc. (outils développeur)
+            if (e.key === 'F12' || 
+                (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+                (e.ctrlKey && e.shiftKey && e.key === 'C') ||
+                (e.ctrlKey && e.key === 'U')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+        
+        // Messages de sécurité dans la console
+        console.log('%c🛡️ SITE BLOQUÉ PAR URL SECURITY SCANNER', 'color: #dc2626; font-size: 20px; font-weight: bold;');
+        console.log('%cCe site a été identifié comme malveillant et bloqué pour votre protection.', 'color: #991b1b; font-size: 14px;');
+        console.log('%cURL bloquée: ' + (blockedUrl ? decodeURIComponent(blockedUrl) : 'Non spécifiée'), 'color: #6b7280; font-size: 12px;');
+        
+        // Ajouter des informations dynamiques si disponibles
+        if (reason) {
+            const reasonElement = document.createElement('div');
+            reasonElement.style.cssText = `
+                background: #fef2f2;
+                border: 2px solid #fecaca;
+                border-radius: 12px;
+                padding: 20px;
+                margin: 20px 0;
+                color: #7f1d1d;
+                font-weight: 600;
+            `;
+            reasonElement.innerHTML = `<strong>Raison du blocage :</strong> ${decodeURIComponent(reason)}`;
+            
+            const details = document.querySelector('.details');
+            details.appendChild(reasonElement);
+        }
+
+        // Horodatage du blocage
+        if (timestamp) {
+            const blockTime = new Date(parseInt(timestamp));
+            const timeElement = document.createElement('p');
+            timeElement.style.cssText = 'font-size: 12px; color: #9ca3af; margin-top: 10px;';
+            timeElement.textContent = `Bloqué le : ${blockTime.toLocaleString()}`;
+            
+            document.querySelector('.footer').appendChild(timeElement);
+        }
+
+        // Animation d'entrée retardée pour les éléments
+        setTimeout(() => {
+            document.querySelector('.container').style.animation = 'none';
+        }, 600);
+
+        // Empêcher certaines tentatives de contournement
+        Object.defineProperty(window.location, 'href', {
+            set: function(url) {
+                console.log('Tentative de navigation bloquée vers:', url);
+                return false;
+            },
+            get: function() {
+                return window.location.toString();
+            }
+        });
+
+        // Log périodique pour indiquer que la protection est active
+        setInterval(() => {
+            console.log('🛡️ Protection URL Security Scanner active');
+        }, 30000); // Toutes les 30 secondes
+    </script>
+</body>
+</html>
