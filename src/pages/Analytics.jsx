@@ -9,7 +9,10 @@ import {
   Search, Eye, ChevronDown, ArrowUp, ArrowDown, Minus,
   User, Mail, MapPin, Building, RefreshCw, Star,
   Activity, BarChart3, Circle,
-  X, ChevronLeft, ChevronRight, Loader2
+  X, ChevronLeft, ChevronRight, Loader2,
+  Shield, AlertTriangle, Ban, FileText, Download,
+  Globe, Zap, Bug, Lock, ExternalLink, Clock3,
+  CheckCircle2, XCircle, AlertOctagon, Info
 } from 'lucide-react';
 
 // Configuration API - remplacez par votre URL backend
@@ -42,7 +45,6 @@ const getAllAnalyticsData = async (filters = {}) => {
   try {
     console.log('📊 Récupération de toutes les données analytics...');
     
-    // Exécuter toutes les requêtes en parallèle
     const [
       overviewData,
       campaignsData,
@@ -72,21 +74,140 @@ const getAllAnalyticsData = async (filters = {}) => {
   }
 };
 
-const getUserProgressAnalytics = async (filters = {}) => {
-  const queryParams = new URLSearchParams();
-  Object.keys(filters).forEach(key => {
-    if (filters[key] !== undefined && filters[key] !== null && filters[key] !== '') {
-      queryParams.append(key, filters[key]);
-    }
-  });
-  
-  const response = await apiCall(`/analytics/users/progress?${queryParams}`);
-  return response;
+// Nouvelles fonctions API pour les incidents
+const getIncidentsOverview = async () => {
+  try {
+    const [statistics, dashboard, realtime] = await Promise.all([
+      apiCall('/incidents/statistics'),
+      apiCall('/incidents/dashboard'),
+      apiCall('/incidents/metrics/realtime')
+    ]);
+
+    return {
+      success: true,
+      data: {
+        statistics: statistics.data,
+        dashboard: dashboard.data,
+        realtime: realtime.data
+      }
+    };
+  } catch (error) {
+    console.error('❌ Erreur récupération overview incidents:', error);
+    throw error;
+  }
 };
 
-const getUserDetailedProgress = async (campaignId, targetEmail) => {
-  const response = await apiCall(`/learning/campaigns/${campaignId}/${encodeURIComponent(targetEmail)}/formations`);
-  return response;
+const getIncidents = async (filters = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    Object.keys(filters).forEach(key => {
+      if (filters[key] !== undefined && filters[key] !== null && filters[key] !== '') {
+        queryParams.append(key, filters[key]);
+      }
+    });
+    
+    const response = await apiCall(`/incidents?${queryParams}`);
+    return response;
+  } catch (error) {
+    console.error('❌ Erreur récupération incidents:', error);
+    throw error;
+  }
+};
+
+const getIncidentById = async (id) => {
+  try {
+    const response = await apiCall(`/incidents/${id}`);
+    return response;
+  } catch (error) {
+    console.error(`❌ Erreur récupération incident ${id}:`, error);
+    throw error;
+  }
+};
+
+const markAsFalsePositive = async (id, adminNote = '') => {
+  try {
+    const response = await apiCall(`/incidents/${id}/false-positive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ adminNote })
+    });
+    return response;
+  } catch (error) {
+    console.error(`❌ Erreur marquage faux positif ${id}:`, error);
+    throw error;
+  }
+};
+
+const markAsResolved = async (id) => {
+  try {
+    const response = await apiCall(`/incidents/${id}/resolve`, {
+      method: 'PATCH'
+    });
+    return response;
+  } catch (error) {
+    console.error(`❌ Erreur marquage résolu ${id}:`, error);
+    throw error;
+  }
+};
+
+const exportIncidents = async (format = 'json', startDate, endDate) => {
+  try {
+    const params = new URLSearchParams({ format });
+    
+    const defaultEndDate = new Date().toISOString();
+    const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    if (startDate) {
+      params.append('startDate', startDate);
+    } else {
+      params.append('startDate', defaultStartDate);
+    }
+    
+    if (endDate) {
+      params.append('endDate', endDate);
+    } else {
+      params.append('endDate', defaultEndDate);
+    }
+    
+    console.log('📥 Export des incidents:', { format, startDate: startDate || defaultStartDate, endDate: endDate || defaultEndDate });
+    
+    const response = await fetch(`${API_BASE_URL}/incidents/export?${params}`);
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Erreur export:', response.status, errorData);
+      throw new Error(`Erreur HTTP: ${response.status}`);
+    }
+    
+    if (format === 'csv') {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `incidents_${Date.now()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      return { success: true, message: 'Export CSV terminé' };
+    } else {
+      const data = await response.json();
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `incidents_${Date.now()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      return { success: true, message: 'Export JSON terminé', data };
+    }
+  } catch (error) {
+    console.error('❌ Erreur export incidents:', error);
+    throw error;
+  }
 };
 
 // Couleurs pour les graphiques
@@ -96,7 +217,9 @@ const COLORS = {
   warning: '#F59E0B',
   error: '#EF4444',
   info: '#6366F1',
-  purple: '#8B5CF6'
+  purple: '#8B5CF6',
+  cyan: '#06B6D4',
+  orange: '#F97316'
 };
 
 const PIE_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
@@ -107,7 +230,12 @@ export default function Analytics() {
     overview: null,
     campaigns: [],
     userProgress: { users: [], summary: {} },
-    progressOverTime: []
+    progressOverTime: [],
+    incidents: {
+      overview: null,
+      list: [],
+      pagination: { currentPage: 1, totalPages: 1, totalIncidents: 0 }
+    }
   });
   
   // États de l'interface
@@ -119,7 +247,9 @@ export default function Analytics() {
   const [viewMode, setViewMode] = useState('overview');
   const [selectedTimeframe, setSelectedTimeframe] = useState('30d');
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedIncident, setSelectedIncident] = useState(null);
   const [loadingUser, setLoadingUser] = useState(false);
+  const [loadingIncident, setLoadingIncident] = useState(false);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -127,10 +257,22 @@ export default function Analytics() {
     itemsPerPage: 20
   });
 
+  // États spécifiques aux incidents
+  const [incidentFilters, setIncidentFilters] = useState({
+    riskLevel: '',
+    incidentType: '',
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  });
+
   // Chargement initial des données
   useEffect(() => {
-    loadAnalyticsData();
-  }, [selectedTimeframe]);
+    if (viewMode === 'incidents') {
+      loadIncidentsData();
+    } else {
+      loadAnalyticsData();
+    }
+  }, [selectedTimeframe, viewMode]);
 
   // Recharger les données utilisateurs quand les filtres changent
   useEffect(() => {
@@ -139,32 +281,93 @@ export default function Analytics() {
     }
   }, [viewMode, selectedCampaign, searchTerm, sortConfig, pagination.currentPage]);
 
+  // Recharger les incidents quand les filtres changent
+  useEffect(() => {
+    if (viewMode === 'incidents') {
+      loadIncidentsList();
+    }
+  }, [incidentFilters, pagination.currentPage]);
+
   const loadAnalyticsData = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('Chargement des données analytics...');
-      
-      const filters = {
-        timeframe: selectedTimeframe
-      };
-
-      // Charger toutes les données analytics
+      const filters = { timeframe: selectedTimeframe };
       const analyticsData = await getAllAnalyticsData(filters);
       
       if (analyticsData.success) {
-        setData(analyticsData.data);
-        console.log('Données analytics chargées avec succès:', analyticsData.data);
-      } else {
-        throw new Error('Erreur lors du chargement des données');
+        setData(prev => ({
+          ...prev,
+          overview: analyticsData.data.overview,
+          campaigns: analyticsData.data.campaigns,
+          userProgress: analyticsData.data.userProgress,
+          progressOverTime: analyticsData.data.progressOverTime
+        }));
       }
-      
     } catch (err) {
       console.error('Erreur chargement analytics:', err);
       setError(err.message || 'Erreur lors du chargement des données');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadIncidentsData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const [overviewData, incidentsData] = await Promise.all([
+        getIncidentsOverview(),
+        getIncidents({
+          page: pagination.currentPage,
+          limit: pagination.itemsPerPage,
+          ...incidentFilters
+        })
+      ]);
+
+      if (overviewData.success && incidentsData.success) {
+        setData(prev => ({
+          ...prev,
+          incidents: {
+            overview: overviewData.data,
+            list: incidentsData.data.incidents,
+            pagination: incidentsData.data.pagination
+          }
+        }));
+        setPagination(incidentsData.data.pagination);
+      }
+    } catch (err) {
+      console.error('Erreur chargement incidents:', err);
+      setError(err.message || 'Erreur lors du chargement des incidents');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadIncidentsList = async () => {
+    try {
+      const incidentsData = await getIncidents({
+        page: pagination.currentPage,
+        limit: pagination.itemsPerPage,
+        ...incidentFilters
+      });
+
+      if (incidentsData.success) {
+        setData(prev => ({
+          ...prev,
+          incidents: {
+            ...prev.incidents,
+            list: incidentsData.data.incidents,
+            pagination: incidentsData.data.pagination
+          }
+        }));
+        setPagination(incidentsData.data.pagination);
+      }
+    } catch (err) {
+      console.error('Erreur chargement liste incidents:', err);
+      setError(err.message);
     }
   };
 
@@ -179,67 +382,86 @@ export default function Analytics() {
         limit: pagination.itemsPerPage
       };
 
-      const userProgressData = await getUserProgressAnalytics(filters);
+      const userProgressData = await apiCall(`/analytics/users/progress?${new URLSearchParams(filters)}`);
       
       if (userProgressData.success) {
         setData(prev => ({
           ...prev,
           userProgress: userProgressData.data
         }));
-        
         setPagination(userProgressData.data.pagination);
       }
-      
     } catch (err) {
       console.error('Erreur chargement données utilisateurs:', err);
       setError(err.message);
     }
   };
 
-  const loadUserDetails = async (user) => {
+  const loadIncidentDetails = async (incident) => {
     try {
-      setLoadingUser(true);
+      setLoadingIncident(true);
+      const incidentDetails = await getIncidentById(incident._id);
       
-      const userDetails = await getUserDetailedProgress(user.campaignId, user.targetEmail);
-      
-      if (userDetails.success) {
-        // Combiner les données utilisateur existantes avec les détails des formations
-        const detailedUser = {
-          ...user,
-          // Détails supplémentaires de l'utilisateur
-          user: userDetails.data.user,
-          overallStats: userDetails.data.overallStats,
-          // Formations avec détails complets
-          formations: userDetails.data.formations.map(formation => ({
-            formationId: formation._id,
-            formationTitle: formation.title,
-            description: formation.description,
-            category: formation.category,
-            estimatedTime: formation.estimatedTime,
-            status: formation.progress?.status || 'not_started',
-            overallProgress: formation.progress?.overallProgress || 0,
-            completedAt: formation.progress?.completedAt,
-            badgeEarned: formation.progress?.badgeEarned || false,
-            badge: formation.badge,
-            modules: formation.modules || [],
-            timeSpent: 0 // Sera calculé depuis les modules si disponible
-          }))
-        };
-        
-        setSelectedUser(detailedUser);
+      if (incidentDetails.success) {
+        setSelectedIncident(incidentDetails.data);
       }
+    } catch (err) {
+      console.error('Erreur chargement détails incident:', err);
+      setSelectedIncident(incident);
+    } finally {
+      setLoadingIncident(false);
+    }
+  };
+
+  const handleMarkAsFalsePositive = async (incidentId, note = '') => {
+    try {
+      const result = await markAsFalsePositive(incidentId, note);
+      if (result.success) {
+        loadIncidentsList();
+        if (selectedIncident && selectedIncident._id === incidentId) {
+          setSelectedIncident(null);
+        }
+      }
+    } catch (err) {
+      console.error('Erreur marquage faux positif:', err);
+    }
+  };
+
+  const handleMarkAsResolved = async (incidentId) => {
+    try {
+      const result = await markAsResolved(incidentId);
+      if (result.success) {
+        loadIncidentsList();
+        if (selectedIncident && selectedIncident._id === incidentId) {
+          setSelectedIncident(null);
+        }
+      }
+    } catch (err) {
+      console.error('Erreur marquage résolu:', err);
+    }
+  };
+
+  const handleExport = async (format) => {
+    try {
+      const endDate = new Date().toISOString();
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      await exportIncidents(format, startDate, endDate);
+      
+      console.log(`✅ Export ${format.toUpperCase()} réussi`);
       
     } catch (err) {
-      console.error('Erreur chargement détails utilisateur:', err);
-      // Utiliser les données existantes en cas d'erreur
-      setSelectedUser(user);
-    } finally {
-      setLoadingUser(false);
+      console.error('Erreur export:', err);
+      setError(err.message || 'Erreur lors de l\'export');
     }
   };
 
   const handleRefresh = () => {
-    loadAnalyticsData();
+    if (viewMode === 'incidents') {
+      loadIncidentsData();
+    } else {
+      loadAnalyticsData();
+    }
   };
 
   const handleSort = (key) => {
@@ -249,6 +471,15 @@ export default function Analytics() {
     }));
   };
 
+  const handleIncidentSort = (key) => {
+    setIncidentFilters(prev => ({
+      ...prev,
+      sortBy: key,
+      sortOrder: prev.sortBy === key && prev.sortOrder === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
+  // Fonctions utilitaires
   const formatTime = (minutes) => {
     if (!minutes) return '0m';
     const hours = Math.floor(minutes / 60);
@@ -260,6 +491,10 @@ export default function Analytics() {
     return new Date(date).toLocaleDateString('fr-FR');
   };
 
+  const formatDateTime = (date) => {
+    return new Date(date).toLocaleString('fr-FR');
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'text-green-600 bg-green-100';
@@ -269,9 +504,36 @@ export default function Analytics() {
     }
   };
 
-  const getSortIcon = (key) => {
-    if (sortConfig.key !== key) return <Minus className="w-4 h-4 opacity-30" />;
-    return sortConfig.direction === 'asc' ? 
+  const getRiskLevelColor = (riskLevel) => {
+    switch (riskLevel) {
+      case 'high': return 'text-red-600 bg-red-100 border-red-200';
+      case 'medium': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
+      case 'low': return 'text-green-600 bg-green-100 border-green-200';
+      default: return 'text-gray-600 bg-gray-100 border-gray-200';
+    }
+  };
+
+  const getIncidentTypeIcon = (type) => {
+    switch (type) {
+      case 'phishing': return <AlertTriangle className="w-4 h-4" />;
+      case 'malware': return <Bug className="w-4 h-4" />;
+      case 'scam': return <AlertOctagon className="w-4 h-4" />;
+      case 'suspicious_domain': return <Globe className="w-4 h-4" />;
+      case 'ip_address_access': return <Lock className="w-4 h-4" />;
+      default: return <Shield className="w-4 h-4" />;
+    }
+  };
+
+  const getSortIcon = (key, currentSortConfig = sortConfig) => {
+    if (currentSortConfig.key !== key) return <Minus className="w-4 h-4 opacity-30" />;
+    return currentSortConfig.direction === 'asc' ? 
+      <ArrowUp className="w-4 h-4 text-cyan-400" /> : 
+      <ArrowDown className="w-4 h-4 text-cyan-400" />;
+  };
+
+  const getIncidentSortIcon = (key) => {
+    if (incidentFilters.sortBy !== key) return <Minus className="w-4 h-4 opacity-30" />;
+    return incidentFilters.sortOrder === 'asc' ? 
       <ArrowUp className="w-4 h-4 text-cyan-400" /> : 
       <ArrowDown className="w-4 h-4 text-cyan-400" />;
   };
@@ -288,6 +550,16 @@ export default function Analytics() {
       { name: 'En cours', value: inProgress, color: COLORS.warning },
       { name: 'Non commencé', value: notStarted, color: COLORS.error }
     ].filter(item => item.value > 0);
+  };
+
+  const prepareRiskDistribution = () => {
+    if (!data.incidents.overview?.statistics?.riskLevelStats) return [];
+    
+    return data.incidents.overview.statistics.riskLevelStats.map(stat => ({
+      name: stat._id === 'high' ? 'Élevé' : stat._id === 'medium' ? 'Moyen' : 'Faible',
+      value: stat.count,
+      color: stat._id === 'high' ? COLORS.error : stat._id === 'medium' ? COLORS.warning : COLORS.success
+    }));
   };
 
   const prepareCampaignData = () => {
@@ -312,7 +584,7 @@ export default function Analytics() {
   });
 
   // Affichage du loading initial
-  if (isLoading && !data.overview) {
+  if (isLoading && !data.overview && viewMode !== 'incidents') {
     return (
       <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -323,8 +595,19 @@ export default function Analytics() {
     );
   }
 
+  if (isLoading && !data.incidents.overview && viewMode === 'incidents') {
+    return (
+      <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-white text-lg">Chargement des données incidents...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Affichage d'erreur
-  if (error && !data.overview) {
+  if (error && !data.overview && !data.incidents.overview) {
     return (
       <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -350,9 +633,9 @@ export default function Analytics() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-                Analytics & Rapports
+                Analytics & Incidents
               </h1>
-              <p className="text-gray-300 mt-1">Suivi des progrès et performances de formation</p>
+              <p className="text-gray-300 mt-1">Suivi des progrès et surveillance des menaces</p>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -361,7 +644,8 @@ export default function Analytics() {
                 {[
                   { key: 'overview', label: 'Vue d\'ensemble', icon: TrendingUp },
                   { key: 'campaigns', label: 'Campagnes', icon: Target },
-                  { key: 'users', label: 'Utilisateurs', icon: Users }
+                  { key: 'users', label: 'Utilisateurs', icon: Users },
+                  { key: 'incidents', label: 'Incidents', icon: Shield }
                 ].map(({ key, label, icon: Icon }) => (
                   <button
                     key={key}
@@ -379,7 +663,7 @@ export default function Analytics() {
               </div>
 
               {/* Sélecteur de période pour overview */}
-              {viewMode === 'overview' && (
+              {(viewMode === 'overview' || viewMode === 'incidents') && (
                 <select
                   value={selectedTimeframe}
                   onChange={(e) => setSelectedTimeframe(e.target.value)}
@@ -605,7 +889,7 @@ export default function Analytics() {
                         'bg-gray-500/20 text-gray-400'
                       }`}>
                         {campaign.status === 'running' ? 'En cours' : 
-                         campaign.status === 'completed' ? 'Terminée' : 'Terminer'}
+                         campaign.status === 'completed' ? 'Terminée' : 'Terminé'}
                       </span>
                     </div>
                     
@@ -744,7 +1028,7 @@ export default function Analytics() {
                         <tr 
                           key={user.targetEmail} 
                           className="hover:bg-white/5 transition-colors cursor-pointer"
-                          onClick={() => loadUserDetails(user)}
+                          onClick={() => setSelectedUser(user)}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
@@ -860,10 +1144,379 @@ export default function Analytics() {
               </div>
             </div>
           )}
+
+          {/* Vue Incidents */}
+          {viewMode === 'incidents' && (
+            <div className="space-y-6">
+              {/* Métriques des incidents */}
+              {data.incidents.overview && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  {[
+                    {
+                      title: 'Total Incidents',
+                      value: data.incidents.overview.statistics?.totalIncidents?.toLocaleString() || '0',
+                      change: `+${data.incidents.overview.realtime?.incidentsLast5min || 0}`,
+                      subtext: 'dernière heure',
+                      icon: Shield,
+                      color: 'text-blue-400'
+                    },
+                    {
+                      title: 'Incidents Critiques',
+                      value: `${data.incidents.overview.realtime?.criticalIncidents || 0}`,
+                      change: data.incidents.overview.realtime?.status === 'critical' ? 'CRITIQUE' : 
+                             data.incidents.overview.realtime?.status === 'warning' ? 'ALERTE' : 'NORMAL',
+                      subtext: 'statut système',
+                      icon: AlertTriangle,
+                      color: data.incidents.overview.realtime?.status === 'critical' ? 'text-red-400' : 
+                             data.incidents.overview.realtime?.status === 'warning' ? 'text-yellow-400' : 'text-green-400'
+                    },
+                    {
+                      title: 'Menaces Bloquées',
+                      value: `${data.incidents.overview.statistics?.summary?.blockedIncidents || 0}`,
+                      change: `${Math.round((data.incidents.overview.statistics?.summary?.blockedIncidents / data.incidents.overview.statistics?.totalIncidents) * 100 || 0)}%`,
+                      subtext: 'taux de protection',
+                      icon: Ban,
+                      color: 'text-red-400'
+                    },
+                    {
+                      title: 'Aujourd\'hui',
+                      value: `${data.incidents.overview.dashboard?.metrics?.incidentsToday || 0}`,
+                      change: `${data.incidents.overview.dashboard?.metrics?.averagePerDay || 0}`,
+                      subtext: 'moyenne/jour',
+                      icon: Clock3,
+                      color: 'text-orange-400'
+                    }
+                  ].map((metric, index) => (
+                    <div key={index} className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-gray-300 text-sm">{metric.title}</p>
+                          <p className="text-white text-2xl font-bold mt-1">{metric.value}</p>
+                          <p className={`${metric.color} text-sm mt-1`}>{metric.change} {metric.subtext}</p>
+                        </div>
+                        <div className={`p-3 rounded-full bg-white/10 ${metric.color}`}>
+                          <metric.icon className="w-6 h-6" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Graphiques des incidents */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                {/* Distribution des niveaux de risque */}
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+                  <h3 className="text-white text-lg font-semibold mb-4 flex items-center">
+                    <Circle className="w-5 h-5 mr-2" />
+                    Répartition par Niveau de Risque
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={prepareRiskDistribution()}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {prepareRiskDistribution().map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'rgba(0,0,0,0.8)',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          borderRadius: '8px',
+                          color: 'white'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex justify-center space-x-4 mt-4">
+                    {prepareRiskDistribution().map((entry, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: entry.color }}
+                        />
+                        <span className="text-gray-300 text-sm">{entry.name} ({entry.value})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Top menaces */}
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+                  <h3 className="text-white text-lg font-semibold mb-4 flex items-center">
+                    <Zap className="w-5 h-5 mr-2" />
+                    Top 5 Menaces Détectées
+                  </h3>
+                  <div className="space-y-3">
+                    {(data.incidents.overview?.realtime?.activeThreats || []).slice(0, 5).map((threat, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          {getIncidentTypeIcon(threat._id)}
+                          <div>
+                            <p className="text-white font-medium capitalize">{threat._id}</p>
+                            <p className="text-gray-400 text-sm">Sévérité: {threat.severity}</p>
+                          </div>
+                        </div>
+                        <span className="text-cyan-400 font-bold">{threat.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Filtres et actions */}
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+                <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+                  <div className="flex flex-wrap gap-4">
+                    <select
+                      value={incidentFilters.riskLevel}
+                      onChange={(e) => setIncidentFilters(prev => ({ ...prev, riskLevel: e.target.value }))}
+                      className="bg-gray-800/80 border border-gray-600 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="">Tous les niveaux</option>
+                      <option value="high">Élevé</option>
+                      <option value="medium">Moyen</option>
+                      <option value="low">Faible</option>
+                    </select>
+
+                    <select
+                      value={incidentFilters.incidentType}
+                      onChange={(e) => setIncidentFilters(prev => ({ ...prev, incidentType: e.target.value }))}
+                      className="bg-gray-800/80 border border-gray-600 rounded-lg text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="">Tous les types</option>
+                      <option value="phishing">Phishing</option>
+                      <option value="malware">Malware</option>
+                      <option value="scam">Scam</option>
+                      <option value="suspicious_domain">Domaine Suspect</option>
+                      <option value="ip_address_access">Accès IP</option>
+                      <option value="other">Autre</option>
+                    </select>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleExport('json')}
+                      className="flex items-center space-x-2 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export JSON</span>
+                    </button>
+                    <button
+                      onClick={() => handleExport('csv')}
+                      className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Export CSV</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tableau des incidents - SANS COLONNE STATUT */}
+              <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 overflow-hidden">
+                <div className="p-6 border-b border-white/20">
+                  <h3 className="text-white text-lg font-semibold flex items-center">
+                    <FileText className="w-5 h-5 mr-2" />
+                    Liste des Incidents ({data.incidents.pagination?.totalIncidents || 0})
+                  </h3>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-white/5">
+                      <tr>
+                        {[
+                          { key: 'url', label: 'URL / Domaine' },
+                          { key: 'incidentType', label: 'Type' },
+                          { key: 'riskLevel', label: 'Niveau' },
+                          { key: 'riskScore', label: 'Score' },
+                          { key: 'createdAt', label: 'Détecté le' },
+                          { key: 'actions', label: 'Actions' }
+                        ].map(({ key, label }) => (
+                          <th 
+                            key={key}
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-white/10 transition-colors"
+                            onClick={() => key !== 'actions' && handleIncidentSort(key)}
+                          >
+                            <div className="flex items-center space-x-1">
+                              <span>{label}</span>
+                              {key !== 'actions' && getIncidentSortIcon(key)}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {(data.incidents.list || []).map((incident, index) => (
+                        <tr 
+                          key={incident._id} 
+                          className="hover:bg-white/5 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="space-y-1">
+                              <div className="text-sm font-medium text-white truncate max-w-xs">
+                                {incident.url}
+                              </div>
+                              <div className="flex items-center text-xs text-gray-400">
+                                <Globe className="w-3 h-3 mr-1" />
+                                {incident.domain}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              {getIncidentTypeIcon(incident.incidentType)}
+                              <span className="text-sm text-white capitalize">
+                                {incident.incidentType.replace('_', ' ')}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRiskLevelColor(incident.riskLevel)}`}>
+                              {incident.riskLevel === 'high' ? 'Élevé' : 
+                               incident.riskLevel === 'medium' ? 'Moyen' : 'Faible'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <span className="text-white font-medium mr-2">{incident.riskScore}</span>
+                              <div className="w-12 bg-gray-700 rounded-full h-1.5">
+                                <div 
+                                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                                    incident.riskScore >= 70 ? 'bg-red-500' :
+                                    incident.riskScore >= 40 ? 'bg-yellow-500' : 'bg-green-500'
+                                  }`}
+                                  style={{ width: `${incident.riskScore}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="space-y-1">
+                              <div className="text-sm text-white">{formatDateTime(incident.createdAt)}</div>
+                              <div className="flex items-center space-x-2">
+                                {incident.blocked && (
+                                  <div className="flex items-center text-red-400">
+                                    <Ban className="w-3 h-3 mr-1" />
+                                    <span className="text-xs">Bloqué</span>
+                                  </div>
+                                )}
+                                {incident.verified && (
+                                  <CheckCircle className="w-3 h-3 text-blue-400" />
+                                )}
+                                {incident.falsePositive && (
+                                  <XCircle className="w-3 h-3 text-yellow-400" />
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => loadIncidentDetails(incident)}
+                                className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                                title="Voir détails"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              {!incident.verified && !incident.falsePositive && (
+                                <>
+                                  <button
+                                    onClick={() => handleMarkAsResolved(incident._id)}
+                                    className="text-green-400 hover:text-green-300 transition-colors"
+                                    title="Marquer comme résolu"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleMarkAsFalsePositive(incident._id)}
+                                    className="text-yellow-400 hover:text-yellow-300 transition-colors"
+                                    title="Marquer comme faux positif"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {(data.incidents.list || []).length === 0 && (
+                  <div className="text-center py-12">
+                    <Shield className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-300">
+                      Aucun incident trouvé
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-400">
+                      {isLoading ? 'Chargement en cours...' : 'Aucun incident ne correspond aux critères sélectionnés.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Pagination des incidents */}
+                {data.incidents.pagination && data.incidents.pagination.totalPages > 1 && (
+                  <div className="px-6 py-4 border-t border-white/20 flex items-center justify-between">
+                    <div className="text-sm text-gray-300">
+                      Affichage de {((data.incidents.pagination.currentPage - 1) * 20) + 1} à {Math.min(data.incidents.pagination.currentPage * 20, data.incidents.pagination.totalIncidents)} sur {data.incidents.pagination.totalIncidents} incidents
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setPagination(prev => ({ ...prev, currentPage: Math.max(1, prev.currentPage - 1) }))}
+                        disabled={data.incidents.pagination.currentPage === 1}
+                        className="p-2 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      
+                      <div className="flex items-center space-x-1">
+                        {Array.from({ length: Math.min(5, data.incidents.pagination.totalPages) }, (_, i) => {
+                          const page = i + 1;
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setPagination(prev => ({ ...prev, currentPage: page }))}
+                              className={`px-3 py-1 text-sm rounded ${
+                                data.incidents.pagination.currentPage === page
+                                  ? 'bg-cyan-600 text-white'
+                                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      
+                      <button
+                        onClick={() => setPagination(prev => ({ ...prev, currentPage: Math.min(data.incidents.pagination.totalPages, prev.currentPage + 1) }))}
+                        disabled={data.incidents.pagination.currentPage === data.incidents.pagination.totalPages}
+                        className="p-2 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Panel de détails utilisateur (affiché en bas) */}
+      {/* Panel de détails utilisateur */}
       {selectedUser && (
         <div className="bg-black/40 backdrop-blur-lg border-t border-white/20 flex-shrink-0 max-h-96 overflow-y-auto">
           <div className="p-6">
@@ -894,8 +1547,7 @@ export default function Analytics() {
                     <X className="w-5 h-5 text-gray-400" />
                   </button>
                 </div>
-
-                {/* Statistiques détaillées de l'utilisateur */}
+ 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   <div className="bg-white/5 rounded-lg p-3 text-center">
                     <p className="text-cyan-400 text-xl font-bold">{selectedUser.totalFormationsStarted || 0}</p>
@@ -914,108 +1566,222 @@ export default function Analytics() {
                     <p className="text-gray-300 text-xs">Badges</p>
                   </div>
                 </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
-                {/* Informations personnelles additionnelles */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-300 text-xs mb-1">Pays</p>
-                    <p className="text-white font-medium">{selectedUser.country || 'Non spécifié'}</p>
+      {/* Panel de détails incident */}
+      {selectedIncident && (
+        <div className="bg-black/40 backdrop-blur-lg border-t border-white/20 flex-shrink-0 max-h-96 overflow-y-auto">
+          <div className="p-6">
+            {loadingIncident ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mr-3" />
+                <span className="text-white">Chargement des détails incident...</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-4">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold ${
+                      selectedIncident.riskLevel === 'high' ? 'bg-red-500' :
+                      selectedIncident.riskLevel === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                    }`}>
+                      {getIncidentTypeIcon(selectedIncident.incidentType)}
+                    </div>
+                    <div>
+                      <h3 className="text-white text-xl font-semibold">
+                        Incident #{selectedIncident._id?.slice(-8)}
+                      </h3>
+                      <p className="text-gray-300">{selectedIncident.incidentType.replace('_', ' ')} • Score: {selectedIncident.riskScore}/100</p>
+                      <div className="flex items-center space-x-3 mt-1">
+                        <p className="text-gray-400 text-sm">{formatDateTime(selectedIncident.createdAt)}</p>
+                        {selectedIncident.blocked && (
+                          <span className="text-red-400 text-sm font-medium">• BLOQUÉ</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-300 text-xs mb-1">Bureau</p>
-                    <p className="text-white font-medium">{selectedUser.office || 'Non spécifié'}</p>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-300 text-xs mb-1">Dernière Activité</p>
-                    <p className="text-white font-medium">{selectedUser.lastActivity ? formatDate(selectedUser.lastActivity) : 'Aucune activité'}</p>
-                  </div>
+                  <button
+                    onClick={() => setSelectedIncident(null)}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
                 </div>
 
-                {/* Formations de l'utilisateur avec détails complets */}
-                <div>
-                  <h4 className="text-white font-semibold mb-4 flex items-center">
-                    <BookOpen className="w-5 h-5 mr-2" />
-                    Formations Détaillées ({(selectedUser.formations || []).length})
-                  </h4>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(selectedUser.formations || []).map((formation, index) => (
-                      <div key={formation.formationId || index} className="bg-white/5 rounded-lg p-5 border border-white/10">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="text-white font-medium text-sm">{formation.formationTitle || formation.title || 'Formation sans nom'}</h5>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(formation.status)}`}>
-                            {formation.status === 'completed' ? 'Terminé' :
-                             formation.status === 'in_progress' ? 'En cours' : 'Non commencé'}
-                          </span>
-                        </div>
-                        
-                        {/* Description de la formation */}
-                        {formation.description && (
-                          <p className="text-gray-300 text-xs mb-3 line-clamp-2">{formation.description}</p>
-                        )}
-
-                        {/* Catégorie et temps estimé */}
-                        <div className="flex justify-between text-xs text-gray-400 mb-3">
-                          {formation.category && (
-                            <span className="bg-white/10 px-2 py-1 rounded">{formation.category}</span>
-                          )}
-                          {formation.estimatedTime && (
-                            <span>{formatTime(formation.estimatedTime)}</span>
-                          )}
-                        </div>
-                        
-                        <div className="space-y-3">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-300">Progression:</span>
-                            <span className="text-white font-medium">{Math.round(formation.overallProgress || 0)}%</span>
-                          </div>
-                          <div className="w-full bg-gray-700 rounded-full h-2">
-                            <div 
-                              className="bg-gradient-to-r from-cyan-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${formation.overallProgress || 0}%` }}
-                            />
-                          </div>
-                          
-                          <div className="text-xs">
-                            <span className="text-gray-300">Temps passé: </span>
-                            <span className="text-white font-medium">
-                              {formatTime(formation.timeSpent || 0)}
-                            </span>
-                          </div>
-                          
-                          {/* Nombre de modules */}
-                          {formation.modules && formation.modules.length > 0 && (
-                            <div className="text-xs">
-                              <span className="text-gray-300">Modules: </span>
-                              <span className="text-white font-medium">{formation.modules.length}</span>
-                            </div>
-                          )}
-                          
-                          {formation.completedAt && (
-                            <div className="text-xs text-gray-400 mt-2">
-                              <Calendar className="w-3 h-3 inline mr-1" />
-                              Terminé le {formatDate(formation.completedAt)}
-                            </div>
-                          )}
-                          
-                          {formation.badgeEarned && formation.badge && (
-                            <div className="flex items-center mt-2 bg-yellow-500/10 rounded p-2">
-                              <Star className="w-4 h-4 text-yellow-400 mr-2" />
-                              <div>
-                                <span className="text-yellow-400 text-xs font-medium">Badge obtenu</span>
-                                <p className="text-yellow-300 text-xs">{formation.badge.name || 'Badge de formation'}</p>
-                              </div>
-                            </div>
-                          )}
+                {/* Détails de l'incident */}
+                <div className="space-y-6">
+                  {/* URL et domaine */}
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <h4 className="text-white font-medium mb-3 flex items-center">
+                      <Globe className="w-4 h-4 mr-2" />
+                      URL et Domaine
+                    </h4>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-gray-400 text-xs">URL complète:</p>
+                        <div className="flex items-center space-x-2">
+                          <p className="text-white text-sm break-all">{selectedIncident.url}</p>
+                          <button
+                            onClick={() => window.open(selectedIncident.url, '_blank')}
+                            className="text-cyan-400 hover:text-cyan-300"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                    ))}
+                      <div>
+                        <p className="text-gray-400 text-xs">Domaine:</p>
+                        <p className="text-white text-sm">{selectedIncident.domain}</p>
+                      </div>
+                    </div>
                   </div>
 
-                  {(selectedUser.formations || []).length === 0 && (
-                    <div className="text-center py-8">
-                      <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
-                      <p className="text-gray-400 mt-2">Aucune formation assignée pour cet utilisateur</p>
+                  {/* Protection et actions */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-3">Protection</h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400 text-sm">Bloqué:</span>
+                          <span className={selectedIncident.blocked ? 'text-red-400 font-medium' : 'text-gray-400'}>
+                            {selectedIncident.blocked ? 'Oui' : 'Non'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400 text-sm">Vérifié:</span>
+                          <span className={selectedIncident.verified ? 'text-green-400' : 'text-gray-400'}>
+                            {selectedIncident.verified ? 'Oui' : 'Non'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400 text-sm">Faux positif:</span>
+                          <span className={selectedIncident.falsePositive ? 'text-yellow-400' : 'text-gray-400'}>
+                            {selectedIncident.falsePositive ? 'Oui' : 'Non'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-3">Actions</h4>
+                      <div className="space-y-2">
+                        {!selectedIncident.verified && !selectedIncident.falsePositive && (
+                          <>
+                            <button
+                              onClick={() => handleMarkAsResolved(selectedIncident._id)}
+                              className="w-full flex items-center justify-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm transition-colors"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              <span>Marquer résolu</span>
+                            </button>
+                            <button
+                              onClick={() => handleMarkAsFalsePositive(selectedIncident._id, 'Marqué depuis les détails')}
+                              className="w-full flex items-center justify-center space-x-2 bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-md text-sm transition-colors"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              <span>Faux positif</span>
+                            </button>
+                          </>
+                        )}
+                        {selectedIncident.verified && (
+                          <div className="text-center text-green-400 text-sm">
+                            <CheckCircle className="w-4 h-4 mx-auto mb-1" />
+                            Incident traité
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Menaces détectées */}
+                  {selectedIncident.threats && selectedIncident.threats.length > 0 && (
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-3 flex items-center">
+                        <AlertTriangle className="w-4 h-4 mr-2" />
+                        Menaces Détectées ({selectedIncident.threats.length})
+                      </h4>
+                      <div className="space-y-3">
+                        {selectedIncident.threats.map((threat, index) => (
+                          <div key={index} className="border border-white/10 rounded p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-white font-medium capitalize">{threat.type}</span>
+                              <span className={`px-2 py-1 text-xs rounded ${
+                                threat.severity === 'high' ? 'bg-red-500/20 text-red-400' :
+                                threat.severity === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-green-500/20 text-green-400'
+                              }`}>
+                                {threat.severity}
+                              </span>
+                            </div>
+                            <p className="text-gray-300 text-sm">{threat.message}</p>
+                            {threat.details && Object.keys(threat.details).length > 0 && (
+                              <div className="mt-2 text-xs text-gray-400">
+                                <pre className="whitespace-pre-wrap">
+                                  {JSON.stringify(threat.details, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Informations techniques */}
+                  {selectedIncident.clientInfo && (
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-3 flex items-center">
+                        <Info className="w-4 h-4 mr-2" />
+                        Informations Techniques
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {selectedIncident.clientInfo.userAgent && (
+                          <div>
+                            <p className="text-gray-400">User Agent:</p>
+                            <p className="text-white break-all">{selectedIncident.clientInfo.userAgent.substring(0, 100)}...</p>
+                          </div>
+                        )}
+                        {selectedIncident.clientInfo.extensionVersion && (
+                          <div>
+                            <p className="text-gray-400">Version Extension:</p>
+                            <p className="text-white">{selectedIncident.clientInfo.extensionVersion}</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-gray-400">Signalé par:</p>
+                          <p className="text-white capitalize">{selectedIncident.reportedBy}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400">Action utilisateur:</p>
+                          <p className="text-white capitalize">{selectedIncident.userAction}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {(selectedIncident.notes || selectedIncident.adminNotes) && (
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-3 flex items-center">
+                        <FileText className="w-4 h-4 mr-2" />
+                        Notes
+                      </h4>
+                      {selectedIncident.notes && (
+                        <div className="mb-3">
+                          <p className="text-gray-400 text-xs mb-1">Notes utilisateur:</p>
+                          <p className="text-white text-sm">{selectedIncident.notes}</p>
+                        </div>
+                      )}
+                      {selectedIncident.adminNotes && (
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Notes admin:</p>
+                          <p className="text-white text-sm">{selectedIncident.adminNotes}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
